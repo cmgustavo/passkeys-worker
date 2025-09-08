@@ -18,6 +18,8 @@
   },
   "dependencies": {
     "@openauthjs/openauth": "0.4.3",
+    "@simplewebauthn/server": "^13.1.2",
+    "jose": "^6.1.0",
     "valibot": "^1.0.0-beta.9"
   },
   "devDependencies": {

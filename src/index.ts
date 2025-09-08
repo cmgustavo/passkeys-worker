@@ -4,6 +4,7 @@ import { PasswordProvider } from "@openauthjs/openauth/provider/password";
 import { PasswordUI } from "@openauthjs/openauth/ui/password";
 import { createSubjects } from "@openauthjs/openauth/subject";
 import { object, string } from "valibot";
+import { routes } from "./passkeys";
 
 // This value should be shared between the OpenAuth server Worker and other
 // client Workers that you connect to it, so the types and schema validation are
@@ -15,7 +16,7 @@ const subjects = createSubjects({
 });
 
 export default {
-  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     // This top section is just for demo purposes. In a real setup another
     // application would redirect the user to this Worker to be authenticated,
     // and after signing in or registering the user would be redirected back to
@@ -23,6 +24,13 @@ export default {
     // application, so this Worker needs to do the initial redirect and handle
     // the callback redirect on completion.
     const url = new URL(request.url);
+    if (request.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" } });
+
+    if (url.pathname === "/webauthn/register/options" && request.method === "POST") return routes.registerOptions(request, env);
+    if (url.pathname === "/webauthn/register/verify"  && request.method === "POST") return routes.registerVerify(request, env);
+    if (url.pathname === "/webauthn/login/options"    && request.method === "POST") return routes.loginOptions(request, env);
+    if (url.pathname === "/webauthn/login/verify"     && request.method === "POST") return routes.loginVerify(request, env);
+
     if (url.pathname === "/") {
       url.searchParams.set("redirect_uri", url.origin + "/callback");
       url.searchParams.set("client_id", "your-client-id");
