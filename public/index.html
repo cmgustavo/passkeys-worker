@@ -98,7 +98,9 @@
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email }),
     });
+    msg('User found in database, requesting login options...');
     const opts = await res.json();
+    log(opts);
 
     // Convert challenge and allowCredentials[].id
     opts.challenge = fromB64Url(opts.challenge);
@@ -129,10 +131,12 @@
     msg(ver.verified ? '✅ Logged in!' : '❌ Login failed');
     log(ver);
 
+    /*
     if (ver.verified) {
       const me = await fetch('/me').then(r => r.json()).catch(()=>({}));
       log({ verified: ver.verified, me });
     }
+     */
   }
 
   document.getElementById('btnRegister').addEventListener('click', () => register().catch(e => { msg('Error'); log(e); }));
