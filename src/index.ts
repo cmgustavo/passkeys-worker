@@ -5,6 +5,7 @@ import { PasswordUI } from "@openauthjs/openauth/ui/password";
 import { createSubjects } from "@openauthjs/openauth/subject";
 import { object, string } from "valibot";
 import { routes } from "./passkeys";
+import * as jose from "jose";
 
 const u8 = (s: string) => new TextEncoder().encode(s);
 const json = (d: unknown, s = 200, h: Record<string, string> = {}) =>
@@ -15,29 +16,6 @@ const cors = {
   "access-control-allow-methods": "GET,POST,OPTIONS",
   "access-control-allow-headers": "content-type",
 };
-
-// base64url helpers (using nodejs_compat → Buffer available)
-const b64url = (buf: ArrayBuffer | Uint8Array) => {
-  const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
-  // @ts-ignore
-  return Buffer.from(bytes).toString("base64url");
-};
-const b64urlToBuf = (s: string) => {
-  // @ts-ignore
-  return Buffer.from(s, "base64url");
-};
-
-// simple data access
-async function getUserByUsername(DB: D1Database, email: string) {
-  return DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first<any>();
-}
-async function getUserById(DB: D1Database, id: string) {
-  return DB.prepare("SELECT * FROM users WHERE id = ?").bind(id).first<any>();
-}
-async function getCredsByUser(DB: D1Database, userId: string) {
-  const rs = await DB.prepare("SELECT * FROM credentials WHERE user_id = ?").bind(userId).all<any>();
-  return rs.results ?? [];
-}
 
 // This value should be shared between the OpenAuth server Worker and other
 // client Workers that you connect to it, so the types and schema validation are
@@ -64,6 +42,22 @@ export default {
     if (url.pathname === "/webauthn/login/options"    && request.method === "POST") return routes.loginOptions(request, env);
     if (url.pathname === "/webauthn/login/verify"     && request.method === "POST") return routes.loginVerify(request, env);
 
+    // Protected example
+    if (url.pathname === "/me") {
+      const cookie = request.headers.get("cookie") || "";
+      const sid = /(?:^|;\s*)sid=([^;]+)/.exec(cookie)?.[1];
+      if (!sid) return json({ ok: false }, 401);
+      try {
+        await jose.jwtVerify(sid, u8(env.SESSION_SECRET));
+        return json({ ok: true });
+      } catch {
+        return json({ ok: false }, 401);
+      }
+    }
+
+    // Fallthrough: let static assets handle it
+    return new Response("Not found", { status: 404, headers: cors });
+
     /*
     if (url.pathname === "/") {
       url.searchParams.set("redirect_uri", url.origin + "/callback");
@@ -77,7 +71,6 @@ export default {
         params: Object.fromEntries(url.searchParams.entries()),
       });
     }
-     */
 
     // The real OpenAuth server code starts here:
     return issuer({
@@ -117,6 +110,7 @@ export default {
         });
       },
     }).fetch(request, env, ctx);
+     */
   },
 } satisfies ExportedHandler<Env>;
 
