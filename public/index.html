@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Passkey Demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }
+    .card { max-width: 560px; padding: 1rem 1.25rem; border: 1px solid #ddd; border-radius: 12px; }
+    label { display:block; margin-top: .5rem; font-weight: 600; }
+    input { width: 100%; padding: .6rem .7rem; margin: .25rem 0 .75rem; border: 1px solid #ccc; border-radius: 8px; }
+    button { padding: .6rem 1rem; border: 0; border-radius: 8px; cursor: pointer; }
+    button { padding: .6rem 1rem; border: 0; border-radius: 8px; cursor: pointer; }
+    button.primary { background: #0d6efd; color: white; }
+    button.outline { background: white; border: 1px solid #aaa; }
+    .row { display:flex; gap:.5rem; }
+    pre { background: #fafafa; padding: .75rem; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+<h1>Passkey Demo</h1>
+<div class="card">
+  <label>Email</label>
+  <input id="email" placeholder="gus01@hola.com" value="gus01@hola.com"/>
+
+  <div class="row">
+    <button class="primary" id="btnRegister">Register Passkey</button>
+    <button class="outline" id="btnLogin">Login with Passkey</button>
+  </div>
+
+  <p id="msg"></p>
+  <pre id="log" hidden></pre>
+</div>
+
+<script>
+  const log = (o) => {
+    const el = document.getElementById('log');
+    el.hidden = false;
+    el.textContent = typeof o === 'string' ? o : JSON.stringify(o, null, 2);
+  };
+  const msg = (t) => document.getElementById('msg').textContent = t;
+
+  // base64url helpers
+  const toB64Url = (buf) => {
+    const b = Array.from(new Uint8Array(buf), x => String.fromCharCode(x)).join('');
+    return btoa(b).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  };
+  const fromB64Url = (s) => {
+    s = s.replace(/-/g,'+').replace(/_/g,'/');
+    const pad = s.length % 4 ? 4 - (s.length % 4) : 0;
+    const bin = atob(s + '='.repeat(pad));
+    const bytes = new Uint8Array(bin.length);
+    for (let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  };
+
+  async function register() {
+    msg('Requesting registration options…');
+    const email = document.getElementById('email').value.trim();
+    const res = await fetch('/webauthn/register/options', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const opts = await res.json();
+
+    // Convert challenge & user.id to buffers
+    opts.challenge = fromB64Url(opts.challenge);
+    if (opts.user && opts.user.id) opts.user.id = new TextEncoder().encode(opts.user.id);
+
+    msg('Showing passkey sheet…');
+    const att = await navigator.credentials.create({ publicKey: opts });
+    // Convert ArrayBuffer fields to base64url for the server
+    const attResp = {
+      id: att.id,
+      rawId: toB64Url(att.rawId),
+      type: att.type,
+      response: {
+        clientDataJSON: toB64Url(att.response.clientDataJSON),
+        attestationObject: toB64Url(att.response.attestationObject),
+        transports: att.response.getTransports ? att.response.getTransports() : undefined,
+      }
+    };
+
+    const ver = await fetch('/webauthn/register/verify', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email, attResp }),
+    }).then(r => r.json());
+
+    msg(ver.verified ? '✅ Registered!' : '❌ Registration failed');
+    log(ver);
+  }
+
+  async function login() {
+    msg('Requesting login options…');
+    const email = document.getElementById('email').value.trim();
+    const res = await fetch('/webauthn/login/options', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const opts = await res.json();
+
+    // Convert challenge and allowCredentials[].id
+    opts.challenge = fromB64Url(opts.challenge);
+    if (opts.allowCredentials) {
+      opts.allowCredentials = opts.allowCredentials.map(c => ({ ...c, id: fromB64Url(c.id) }));
+    }
+
+    msg('Showing passkey sheet…');
+    const asse = await navigator.credentials.get({ publicKey: opts });
+
+    const credResp = {
+      id: asse.id,
+      rawId: toB64Url(asse.rawId),
+      type: asse.type,
+      response: {
+        clientDataJSON: toB64Url(asse.response.clientDataJSON),
+        authenticatorData: toB64Url(asse.response.authenticatorData),
+        signature: toB64Url(asse.response.signature),
+        userHandle: asse.response.userHandle ? toB64Url(asse.response.userHandle) : null,
+      }
+    };
+
+    const ver = await fetch('/webauthn/login/verify', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ userID: opts.userID, credResp }),
+    }).then(r => r.json());
+
+    msg(ver.verified ? '✅ Logged in!' : '❌ Login failed');
+    log(ver);
+
+    if (ver.verified) {
+      const me = await fetch('/me').then(r => r.json()).catch(()=>({}));
+      log({ verified: ver.verified, me });
+    }
+  }
+
+  document.getElementById('btnRegister').addEventListener('click', () => register().catch(e => { msg('Error'); log(e); }));
+  document.getElementById('btnLogin').addEventListener('click', () => login().catch(e => { msg('Error'); log(e); }));
+</script>
+</body>
+</html>
