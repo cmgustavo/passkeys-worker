@@ -1,15 +1,44 @@
-import { issuer } from "@openauthjs/openauth";
-import { CloudflareStorage } from "@openauthjs/openauth/storage/cloudflare";
-import { PasswordProvider } from "@openauthjs/openauth/provider/password";
-import { PasswordUI } from "@openauthjs/openauth/ui/password";
-import { createSubjects } from "@openauthjs/openauth/subject";
-import { object, string } from "valibot";
-import { routes } from "./passkeys";
+import {issuer} from "@openauthjs/openauth";
+import {CloudflareStorage} from "@openauthjs/openauth/storage/cloudflare";
+import {PasswordProvider} from "@openauthjs/openauth/provider/password";
+import {PasswordUI} from "@openauthjs/openauth/ui/password";
+import {createSubjects} from "@openauthjs/openauth/subject";
+import {object, string} from "valibot";
+import {routes} from "./passkeys";
 import * as jose from "jose";
+
+const AASA = {
+  applinks: {
+    apps: [],
+    details: [{appID: "884JRH5R93.com.bitpay.wallet", paths: ["/i/*", "/wallet/wc", "/uni/*", "/f/uni/*"]}]
+  }
+};
+
+const ASSETLINKS = [
+  {
+    relation: [
+      "delegate_permission/common.get_login_creds",
+      "delegate_permission/common.handle_all_urls",
+    ],
+    target: {
+      namespace: "android_app",
+      package_name: "com.bitpay.wallet",
+      sha256_cert_fingerprints: [
+        "BA:F3:3F:AB:18:62:54:29:96:45:99:81:17:75:45:8B:53:12:44:EF:A9:3A:DD:23:5D:69:E1:9A:05:43:43:CD",
+      ],
+    },
+  },
+];
+
+const JSON_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
+  "cache-control": "public, max-age=3600",
+  "x-content-type-options": "nosniff",
+};
 
 const u8 = (s: string) => new TextEncoder().encode(s);
 const json = (d: unknown, s = 200, h: Record<string, string> = {}) =>
-  new Response(JSON.stringify(d), { status: s, headers: { "content-type": "application/json", ...cors, ...h } });
+  new Response(JSON.stringify(d), {status: s, headers: {"content-type": "application/json", ...cors, ...h}});
 
 const cors = {
   "access-control-allow-origin": "*",
@@ -35,42 +64,62 @@ export default {
     // application, so this Worker needs to do the initial redirect and handle
     // the callback redirect on completion.
     const url = new URL(request.url);
-    if (request.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" } });
+    if (request.method === "OPTIONS") return new Response(null, {
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "GET,POST,OPTIONS",
+        "access-control-allow-headers": "content-type"
+      }
+    });
+
+    if (
+      url.pathname === "/.well-known/apple-app-site-association" ||
+      url.pathname === "/apple-app-site-association"
+    ) {
+      return new Response(JSON.stringify(AASA), {headers: JSON_HEADERS});
+    }
+
+    if (
+      url.pathname === "/.well-known/assetlinks.json" ||
+      url.pathname === "/assetlinks.json"
+    ) {
+      return new Response(JSON.stringify(ASSETLINKS), {headers: JSON_HEADERS});
+    }
 
     // GET /debug/creds?email=foo
     if (url.pathname === "/debug/creds") {
       const email = url.searchParams.get("email")!;
       const user = await env.AUTH_DB.prepare("SELECT * FROM user WHERE email=?").bind(email).first<any>();
-      if (!user) return json({ user: null, credentials: [] });
+      if (!user) return json({user: null, credentials: []});
       const creds = await env.AUTH_DB.prepare("SELECT * FROM credentials WHERE user_id=?").bind(user.id).all<any>();
-      return json({ user, credentials: creds.results ?? [] });
+      return json({user, credentials: creds.results ?? []});
     }
 
     if (url.pathname === "/") {
       const html = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url))); // if using assets
-      return new Response(await html.text(), { headers: { "content-type": "text/html" } });
+      return new Response(await html.text(), {headers: {"content-type": "text/html"}});
     }
 
     if (url.pathname === "/webauthn/register/options" && request.method === "POST") return routes.registerOptions(request, env);
-    if (url.pathname === "/webauthn/register/verify"  && request.method === "POST") return routes.registerVerify(request, env);
-    if (url.pathname === "/webauthn/login/options"    && request.method === "POST") return routes.loginOptions(request, env);
-    if (url.pathname === "/webauthn/login/verify"     && request.method === "POST") return routes.loginVerify(request, env);
+    if (url.pathname === "/webauthn/register/verify" && request.method === "POST") return routes.registerVerify(request, env);
+    if (url.pathname === "/webauthn/login/options" && request.method === "POST") return routes.loginOptions(request, env);
+    if (url.pathname === "/webauthn/login/verify" && request.method === "POST") return routes.loginVerify(request, env);
 
     // Protected example
     if (url.pathname === "/me") {
       const cookie = request.headers.get("cookie") || "";
       const sid = /(?:^|;\s*)sid=([^;]+)/.exec(cookie)?.[1];
-      if (!sid) return json({ ok: false }, 401);
+      if (!sid) return json({ok: false}, 401);
       try {
         await jose.jwtVerify(sid, u8(env.SESSION_SECRET));
-        return json({ ok: true });
+        return json({ok: true});
       } catch {
-        return json({ ok: false }, 401);
+        return json({ok: false}, 401);
       }
     }
 
     // Fallthrough: let static assets handle it
-    return new Response("Not found", { status: 404, headers: cors });
+    return new Response("Not found", {status: 404, headers: cors});
 
     /*
     if (url.pathname === "/") {
@@ -131,11 +180,11 @@ export default {
 async function getOrCreateUser(env: Env, email: string): Promise<string> {
   const result = await env.AUTH_DB.prepare(
     `
-		INSERT INTO user (email)
-		VALUES (?)
-		ON CONFLICT (email) DO UPDATE SET email = email
-		RETURNING id;
-		`,
+      INSERT INTO user (email)
+      VALUES (?) ON CONFLICT (email) DO
+      UPDATE SET email = email
+        RETURNING id;
+    `,
   )
     .bind(email)
     .first<{ id: string }>();

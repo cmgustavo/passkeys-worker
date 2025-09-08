@@ -100,7 +100,6 @@
     });
     msg('User found in database, requesting login options...');
     const opts = await res.json();
-    log(opts);
 
     // Convert challenge and allowCredentials[].id
     opts.challenge = fromB64Url(opts.challenge);

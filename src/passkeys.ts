@@ -9,23 +9,6 @@ import * as jose from "jose";
 
 const u8 = (s: string) => new TextEncoder().encode(s);
 
-// helper: make sure we hand simplewebauthn a Uint8Array
-const toU8 = (x: unknown) => {
-  // ArrayBuffer from D1
-  if (x instanceof ArrayBuffer) return new Uint8Array(x);
-  // Uint8Array already
-  if (x instanceof Uint8Array) return x;
-  // Base64 string (in case your driver returned a string)
-  if (typeof x === "string") {
-    // @ts-ignore Buffer via nodejs_compat
-    return new Uint8Array(Buffer.from(x, "base64"));
-  }
-  throw new Error("Unsupported key type for credentialPublicKey");
-};
-
-const json = (d: unknown, s = 200) =>
-  new Response(JSON.stringify(d), {status: s, headers: {"content-type": "application/json"}});
-
 const cors = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,POST,OPTIONS",
@@ -81,20 +64,16 @@ export const routes = {
 
   async registerVerify(req: Request, env: Env) {
     const {email, attResp} = await req.json<any>();
-    console.log("Saving credential for user:", email);
     const user = await getUserByUsername(env.AUTH_DB, email);
-    console.log("Found user:", user);
     if (!user) return new Response(JSON.stringify({error: "user not found"}), {status: 404, headers: cors});
 
     const challenge = await env.AUTH_STORAGE.get(`reg-chal:${user.id}`);
-    console.log("Challenge:", challenge);
     const verification = await verifyRegistrationResponse({
       response: attResp,
       expectedChallenge: challenge!,
       expectedOrigin: env.ORIGIN,
       expectedRPID: env.RP_ID,
     });
-    console.log("Verification:", verification);
     if (!verification.verified || !verification.registrationInfo)
       return new Response(JSON.stringify({verified: false}), {status: 400, headers: cors});
 
@@ -118,7 +97,6 @@ export const routes = {
         Date.now()
       ).run();
     } catch (e) {
-      console.log('Error saving credential:', e);
       return new Response(JSON.stringify({verified: false, error: JSON.stringify(e)}), {status: 400, headers: cors});
     }
 
@@ -128,8 +106,7 @@ export const routes = {
   async loginOptions(req: Request, env: Env) {
     const {email} = await req.json<any>();
     const user = await getUserByUsername(env.AUTH_DB, email);
-    if (!user) return new Response(JSON.stringify({error: "user not found"}), {status: 404, headers: cors});
-    const creds = await getCredsByUser(env.AUTH_DB, user.id);
+    if (!user) return new Response(JSON.stringify({verified: false, error: "user not found"}), {status: 404, headers: cors});
 
     const opts = await generateAuthenticationOptions({
       rpID: env.RP_ID,
@@ -146,13 +123,8 @@ export const routes = {
 
   async loginVerify(req: Request, env: Env) {
     const {userID, credResp} = await req.json<any>();
-    console.log("Saving credential for user:", userID);
     const creds = await getCredsByUser(env.AUTH_DB, userID);
-    console.log("Found credentials:", creds);
     const challenge = await env.AUTH_STORAGE.get(`auth-chal:${userID}`);
-    console.log("Challenge:", challenge);
-    //const dbCred = creds[0];
-    //if (!dbCred) return new Response(JSON.stringify({error: "no creds"}), {status: 400, headers: cors});
 
     const dbCred =
       creds.find((c: any) => c.id === credResp.id) ||
@@ -160,7 +132,6 @@ export const routes = {
       creds[0];
 
     if (!dbCred) return new Response(JSON.stringify({error: "no creds"}), {status: 400, headers: cors});
-    console.log("DB Cred:", dbCred);
 
     const verification = await verifyAuthenticationResponse({
       response: credResp,
@@ -173,7 +144,6 @@ export const routes = {
         counter: dbCred.counter,
       },
     });
-    console.log("Verification:", verification);
     if (!verification.verified || !verification.authenticationInfo)
       return new Response(JSON.stringify({verified: false}), {status: 401, headers: cors});
 
