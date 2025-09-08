@@ -119,8 +119,6 @@ export const routes = {
 
     const opts = await generateAuthenticationOptions({
       rpID: env.RP_ID,
-      userVerification: "preferred",
-      allowCredentials: creds.map((c: any) => ({id: b64urlToBuf(c.id), type: "public-key" as const})),
     });
 
     await env.AUTH_STORAGE.put(`auth-chal:${user.id}`, opts.challenge, {expirationTtl: 300});
