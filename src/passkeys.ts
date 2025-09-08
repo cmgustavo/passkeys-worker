@@ -66,20 +66,24 @@ export const routes = {
 
   async registerVerify(req: Request, env: Env) {
     const { email, attResp } = await req.json<any>();
+    console.log("Saving credential for user:", email);
     const user = await getUserByUsername(env.AUTH_DB, email);
+    console.log("Found user:", user);
     if (!user) return new Response(JSON.stringify({ error: "user not found" }), { status: 404, headers: cors });
 
     const challenge = await env.AUTH_STORAGE.get(`reg-chal:${user.id}`);
+    console.log("Challenge:", challenge);
     const verification = await verifyRegistrationResponse({
       response: attResp,
       expectedChallenge: challenge!,
       expectedOrigin: env.ORIGIN,
       expectedRPID: env.RP_ID,
     });
+    console.log("Verification:", verification);
     if (!verification.verified || !verification.registrationInfo)
       return new Response(JSON.stringify({ verified: false }), { status: 400, headers: cors });
 
-    const {fmt, aaguid, credentialBackedUp, credentialDeviceType, rpID, credentialType, credential, attestationObject } =
+    const {fmt, aaguid, credentialBackedUp, credentialType, credential, attestationObject } =
       verification.registrationInfo;
 
     await env.AUTH_DB.prepare(
@@ -90,9 +94,10 @@ export const routes = {
       user.id,
       credential.publicKey,
       credential.counter,
-      fmt, aaguid,
+      fmt,
+      aaguid,
       credentialBackedUp ? 1 : 0,
-      credentialDeviceType === "multiDevice" ? 1 : 0,
+      credentialType === "public-key" ? 1 : 0,
       Date.now()
     ).run();
 
@@ -117,9 +122,13 @@ export const routes = {
 
   async loginVerify(req: Request, env: Env) {
     const { userID, credResp } = await req.json<any>();
+    console.log("Saving credential for user:", userID);
     const creds = await getCredsByUser(env.AUTH_DB, userID);
+    console.log("Found credentials:", creds);
     const challenge = await env.AUTH_STORAGE.get(`auth-chal:${userID}`);
+    console.log("Challenge:", challenge);
     const dbCred = creds[0];
+    console.log("DB Cred:", dbCred);
     if (!dbCred) return new Response(JSON.stringify({ error: "no creds" }), { status: 400, headers: cors });
 
     const verification = await verifyAuthenticationResponse({
@@ -129,6 +138,7 @@ export const routes = {
       expectedRPID: env.RP_ID,
       credential: dbCred,
     });
+    console.log("Verification:", verification);
     if (!verification.verified || !verification.authenticationInfo)
       return new Response(JSON.stringify({ verified: false }), { status: 401, headers: cors });
 

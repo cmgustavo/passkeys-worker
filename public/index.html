@@ -81,6 +81,7 @@
       }
     };
 
+    msg('Verifying registration…');
     const ver = await fetch('/webauthn/register/verify', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ email, attResp }),
