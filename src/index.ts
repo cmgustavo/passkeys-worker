@@ -37,6 +37,11 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" } });
 
+    if (url.pathname === "/") {
+      const html = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url))); // if using assets
+      return new Response(await html.text(), { headers: { "content-type": "text/html" } });
+    }
+
     if (url.pathname === "/webauthn/register/options" && request.method === "POST") return routes.registerOptions(request, env);
     if (url.pathname === "/webauthn/register/verify"  && request.method === "POST") return routes.registerVerify(request, env);
     if (url.pathname === "/webauthn/login/options"    && request.method === "POST") return routes.loginOptions(request, env);

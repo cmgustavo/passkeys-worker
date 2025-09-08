@@ -9,6 +9,7 @@ declare namespace Cloudflare {
     RP_NAME: string;
     ORIGIN: string;
     SESSION_SECRET: string;
+    ASSETS: Fetcher;
   }
 }
 
