@@ -29,7 +29,7 @@ const b64urlToBuf = (s: string) => {
 };
 
 async function getUserByUsername(DB: D1Database, email: string) {
-  return DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first<any>();
+  return DB.prepare("SELECT * FROM user WHERE email = ?").bind(email).first<any>();
 }
 async function getCredsByUser(DB: D1Database, userId: string) {
   const rs = await DB.prepare("SELECT * FROM credentials WHERE user_id = ?").bind(userId).all<any>();
@@ -42,7 +42,7 @@ export const routes = {
     let user = await getUserByUsername(env.AUTH_DB, email);
     if (!user) {
       const id = crypto.randomUUID();
-      await env.AUTH_DB.prepare("INSERT INTO users (id, email, created_at) VALUES (?, ?, ?)")
+      await env.AUTH_DB.prepare("INSERT INTO user (id, email, created_at) VALUES (?, ?, ?)")
         .bind(id, email, Date.now()).run();
       user = { id, email };
     }
