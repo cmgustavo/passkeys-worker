@@ -37,6 +37,15 @@ export default {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-methods": "GET,POST,OPTIONS", "access-control-allow-headers": "content-type" } });
 
+    // GET /debug/creds?email=foo
+    if (url.pathname === "/debug/creds") {
+      const email = url.searchParams.get("email")!;
+      const user = await env.AUTH_DB.prepare("SELECT * FROM user WHERE email=?").bind(email).first<any>();
+      if (!user) return json({ user: null, credentials: [] });
+      const creds = await env.AUTH_DB.prepare("SELECT id, counter, created_at FROM credentials WHERE user_id=?").bind(user.id).all<any>();
+      return json({ user, credentials: creds.results ?? [] });
+    }
+
     if (url.pathname === "/") {
       const html = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url))); // if using assets
       return new Response(await html.text(), { headers: { "content-type": "text/html" } });
