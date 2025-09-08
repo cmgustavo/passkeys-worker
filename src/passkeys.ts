@@ -162,15 +162,6 @@ export const routes = {
     if (!dbCred) return new Response(JSON.stringify({error: "no creds"}), {status: 400, headers: cors});
     console.log("DB Cred:", dbCred);
 
-    const authenticator = {
-      credentialID: b64urlToBuf(dbCred.id),                     // Buffer/Uint8Array
-      credentialPublicKey: toU8(dbCred.public_key),             // Uint8Array required
-      counter: dbCred.counter ?? 0,
-      transports: (dbCred.transports ?? "").split(",").filter(Boolean),
-      // credentialDeviceType: dbCred.uv ? "multi-device" : "single-device",
-      // credentialBackedUp: !!dbCred.backed_up,
-    };
-
     const verification = await verifyAuthenticationResponse({
       response: credResp,
       expectedChallenge: challenge!,
@@ -178,7 +169,7 @@ export const routes = {
       expectedRPID: env.RP_ID,
       credential: {
         id: dbCred.id,
-        publicKey:dbCred.public_key,
+        publicKey: dbCred.public_key,
         counter: dbCred.counter,
       },
     });
