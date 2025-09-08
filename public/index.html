@@ -99,6 +99,7 @@
       body: JSON.stringify({ email }),
     });
     msg('User found in database, requesting login options...');
+    log(res);
     const opts = await res.json();
 
     // Convert challenge and allowCredentials[].id

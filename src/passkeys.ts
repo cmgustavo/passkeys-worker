@@ -106,7 +106,7 @@ export const routes = {
   async loginOptions(req: Request, env: Env) {
     const {email} = await req.json<any>();
     const user = await getUserByUsername(env.AUTH_DB, email);
-    if (!user) return new Response(JSON.stringify({verified: false, error: "user not found"}), {status: 400, headers: cors});
+    if (!user) return new Response(JSON.stringify({error: "user not found"}), {status: 404, headers: cors});
 
     const opts = await generateAuthenticationOptions({
       rpID: env.RP_ID,
