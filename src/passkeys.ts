@@ -176,7 +176,11 @@ export const routes = {
       expectedChallenge: challenge!,
       expectedOrigin: env.ORIGIN,
       expectedRPID: env.RP_ID,
-      credential: dbCred.public_key,
+      credential: {
+        id: dbCred.id,
+        publicKey:dbCred.public_key,
+        counter: dbCred.counter,
+      },
     });
     console.log("Verification:", verification);
     if (!verification.verified || !verification.authenticationInfo)
