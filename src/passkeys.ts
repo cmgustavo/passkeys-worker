@@ -29,10 +29,10 @@ const b64urlToBuf = (s: string) => {
 };
 
 async function getUserByUsername(DB: D1Database, email: string) {
-  return DB.prepare("SELECT * FROM user WHERE email = ?").bind(email).first<any>();
+  return DB.prepare("SELECT * FROM user WHERE email = ?")?.bind(email).first<any>();
 }
 async function getCredsByUser(DB: D1Database, userId: string) {
-  const rs = await DB.prepare("SELECT * FROM credentials WHERE user_id = ?").bind(userId).all<any>();
+  const rs = await DB.prepare("SELECT * FROM credentials WHERE user_id = ?")?.bind(userId).all<any>();
   return rs.results ?? [];
 }
 
@@ -65,8 +65,8 @@ export const routes = {
   },
 
   async registerVerify(req: Request, env: Env) {
-    const { username, attResp } = await req.json<any>();
-    const user = await getUserByUsername(env.AUTH_DB, username);
+    const { email, attResp } = await req.json<any>();
+    const user = await getUserByUsername(env.AUTH_DB, email);
     if (!user) return new Response(JSON.stringify({ error: "user not found" }), { status: 404, headers: cors });
 
     const challenge = await env.AUTH_STORAGE.get(`reg-chal:${user.id}`);
@@ -100,8 +100,8 @@ export const routes = {
   },
 
   async loginOptions(req: Request, env: Env) {
-    const { username } = await req.json<any>();
-    const user = await getUserByUsername(env.AUTH_DB, username);
+    const { email } = await req.json<any>();
+    const user = await getUserByUsername(env.AUTH_DB, email);
     if (!user) return new Response(JSON.stringify({ error: "user not found" }), { status: 404, headers: cors });
     const creds = await getCredsByUser(env.AUTH_DB, user.id);
 
