@@ -9,6 +9,20 @@ import * as jose from "jose";
 
 const u8 = (s: string) => new TextEncoder().encode(s);
 
+// helper: make sure we hand simplewebauthn a Uint8Array
+const toU8 = (x: unknown) => {
+  // ArrayBuffer from D1
+  if (x instanceof ArrayBuffer) return new Uint8Array(x);
+  // Uint8Array already
+  if (x instanceof Uint8Array) return x;
+  // Base64 string (in case your driver returned a string)
+  if (typeof x === "string") {
+    // @ts-ignore Buffer via nodejs_compat
+    return new Uint8Array(Buffer.from(x, "base64"));
+  }
+  throw new Error("Unsupported key type for credentialPublicKey");
+};
+
 const json = (d: unknown, s = 200) =>
   new Response(JSON.stringify(d), {status: s, headers: {"content-type": "application/json"}});
 
@@ -137,16 +151,32 @@ export const routes = {
     console.log("Found credentials:", creds);
     const challenge = await env.AUTH_STORAGE.get(`auth-chal:${userID}`);
     console.log("Challenge:", challenge);
-    const dbCred = creds[0];
-    console.log("DB Cred:", dbCred);
+    //const dbCred = creds[0];
+    //if (!dbCred) return new Response(JSON.stringify({error: "no creds"}), {status: 400, headers: cors});
+
+    const dbCred =
+      creds.find((c: any) => c.id === credResp.id) ||
+      creds.find((c: any) => b64urlToBuf(c.id).byteLength === b64urlToBuf(credResp.id).byteLength) ||
+      creds[0];
+
     if (!dbCred) return new Response(JSON.stringify({error: "no creds"}), {status: 400, headers: cors});
+    console.log("DB Cred:", dbCred);
+
+    const authenticator = {
+      credentialID: b64urlToBuf(dbCred.id),                     // Buffer/Uint8Array
+      credentialPublicKey: toU8(dbCred.public_key),             // Uint8Array required
+      counter: dbCred.counter ?? 0,
+      transports: (dbCred.transports ?? "").split(",").filter(Boolean),
+      // credentialDeviceType: dbCred.uv ? "multi-device" : "single-device",
+      // credentialBackedUp: !!dbCred.backed_up,
+    };
 
     const verification = await verifyAuthenticationResponse({
       response: credResp,
       expectedChallenge: challenge!,
       expectedOrigin: env.ORIGIN,
       expectedRPID: env.RP_ID,
-      credential: dbCred,
+      credential: dbCred.public_key,
     });
     console.log("Verification:", verification);
     if (!verification.verified || !verification.authenticationInfo)

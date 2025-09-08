@@ -42,7 +42,7 @@ export default {
       const email = url.searchParams.get("email")!;
       const user = await env.AUTH_DB.prepare("SELECT * FROM user WHERE email=?").bind(email).first<any>();
       if (!user) return json({ user: null, credentials: [] });
-      const creds = await env.AUTH_DB.prepare("SELECT id, counter, created_at FROM credentials WHERE user_id=?").bind(user.id).all<any>();
+      const creds = await env.AUTH_DB.prepare("SELECT * FROM credentials WHERE user_id=?").bind(user.id).all<any>();
       return json({ user, credentials: creds.results ?? [] });
     }
 
