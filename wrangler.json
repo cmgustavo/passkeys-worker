@@ -16,6 +16,12 @@
       "database_id": "79b8e069-538a-46cb-8a82-bf3b6d9194cd"
     }
   ],
+  "vars": {
+    "RP_ID": "passkeys-worker.gusmaxi.workers.dev",
+    "RP_NAME": "Dev Passkey Server",
+    "ORIGIN": "https://passkeys-worker.gusmaxi.workers.dev",
+    "SESSION_SECRET": "Starlet3-District-Booth-Spotter-Audience-Strongbox"
+  },
   "observability": {
     "enabled": true
   },
