@@ -86,7 +86,7 @@ export const routes = {
 
     try {
 
-      const {fmt, aaguid, credentialBackedUp, credentialType, credential, attestationObject} =
+      const {fmt, aaguid, credentialBackedUp, credentialDeviceType, credential, attestationObject} =
         verification.registrationInfo;
 
       await env.AUTH_DB.prepare(
@@ -100,12 +100,12 @@ export const routes = {
         fmt,
         aaguid,
         credentialBackedUp ? 1 : 0,
-        credentialType === "public-key" ? 1 : 0,
+        credentialDeviceType === "multiDevice" ? 1 : 0,
         Date.now()
       ).run();
     } catch (e) {
       console.log('Error saving credential:', e);
-      return new Response(JSON.stringify({verfied: false, error: e}), {status: 400, headers: cors});
+      return new Response(JSON.stringify({verified: false, error: JSON.stringify(e)}), {status: 400, headers: cors});
     }
 
     return new Response(JSON.stringify({verified: true}), {headers: cors});
