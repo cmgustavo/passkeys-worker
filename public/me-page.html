@@ -152,7 +152,7 @@
       <th>Backed Up</th>
       <th>UV</th>
       <th>Created At</th>
-      <th>Actions</th>
+      <th></th>
     </tr>
     </thead>
     <tbody id="passkey-tbody"></tbody>
@@ -262,7 +262,6 @@
     elTable.classList.remove('hidden');
 
     list.forEach(cred => {
-      console.log('### renderCredential', cred);
       const tr = document.createElement('tr');
 
       const tdId = document.createElement('td');
@@ -270,27 +269,27 @@
       tr.appendChild(tdId);
 
       const tdUserId = document.createElement('td');
-      tdId.innerHTML = `<code title="${cred.user_id || ''}">${shortId(cred.user_id)}</code>`;
+      tdUserId.innerHTML = `<code title="${cred.user_id || ''}">${shortId(cred.user_id)}</code>`;
       tr.appendChild(tdUserId);
 
       const tdCounter = document.createElement('td');
-      tdId.textContent = cred.counter.toString() || '';
+      tdCounter.textContent = cred.counter.toString() || '';
       tr.appendChild(tdCounter);
 
       const tdFmt = document.createElement('td');
-      tdId.textContent = cred.fmt || '';
+      tdFmt.textContent = cred.fmt || '';
       tr.appendChild(tdFmt);
 
       const tdAaguid = document.createElement('td');
-      tdId.textContent = cred.aaguid || '';
+      tdAaguid.textContent = cred.aaguid || '';
       tr.appendChild(tdAaguid);
 
       const tdBackedUp = document.createElement('td');
-      tdId.textContent = cred.backed_up ? 'Yes' : 'No';
+      tdBackedUp.textContent = cred.backed_up ? 'Yes' : 'No';
       tr.appendChild(tdBackedUp);
 
       const tdUv = document.createElement('td');
-      tdId.textContent = cred.uv ? 'Yes' : 'No';
+      tdUv.textContent = cred.uv ? 'Yes' : 'No';
       tr.appendChild(tdUv);
 
       const tdCreated = document.createElement('td');
