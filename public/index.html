@@ -221,12 +221,14 @@
     msg(ver.verified ? 'Logged in!' : 'Login failed');
     log(ver);
 
-    /*
     if (ver.verified) {
-      const me = await fetch('/me').then(r => r.json()).catch(()=>({}));
-      log({ verified: ver.verified, me });
+      const qs = new URLSearchParams(location.search);
+      const want = qs.get('redirect');
+      const dest = (want && want.startsWith('/')) ? want : '/me';
+      location.replace(dest); // replace() so login page isn’t in history
+    } else {
+      alert('Login failed');
     }
-     */
   }
 
   document.getElementById('btnRegister').addEventListener('click', () => register().catch(e => {

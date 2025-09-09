@@ -68,6 +68,16 @@ export default {
       }
     });
 
+    // ---- XHR logout (fetch from JS)
+    if (request.method === 'POST' && url.pathname === '/logout') {
+      return handleLogout(request, env, /*mode=*/'api');
+    }
+
+    // ---- Link/logout via URL (navigation)
+    if (request.method === 'GET' && url.pathname === '/logout') {
+      return handleLogout(request, env, /*mode=*/'nav');
+    }
+
     if (
       url.pathname === "/.well-known/apple-app-site-association" ||
       url.pathname === "/apple-app-site-association"
@@ -80,6 +90,11 @@ export default {
       url.pathname === "/assetlinks.json"
     ) {
       return new Response(JSON.stringify(ASSETLINKS), {headers: JSON_HEADERS});
+    }
+
+    // --- API: JSON for the page ---
+    if (request.method === 'GET' && url.pathname === '/me-creds.json') {
+      return handleGetMe(request, env);
     }
 
     // GET /debug/creds?email=foo
@@ -100,11 +115,6 @@ export default {
     if (url.pathname === "/webauthn/register/verify" && request.method === "POST") return routes.registerVerify(request, env);
     if (url.pathname === "/webauthn/login/options" && request.method === "POST") return routes.loginOptions(request, env);
     if (url.pathname === "/webauthn/login/verify" && request.method === "POST") return routes.loginVerify(request, env);
-
-    // --- API: JSON for the page ---
-    if (request.method === 'GET' && url.pathname === '/me.json') {
-      return handleGetMe(request, env);
-    }
 
     const delMatch = url.pathname.match(/^\/webauthn\/credentials\/([^/]+)$/);
     if (request.method === 'DELETE' && delMatch) {
@@ -242,6 +252,42 @@ async function getUserFromSession(request: Request, env: Env): Promise<{ id: str
     return null;
   }
   return {id: row.user_id, email: row.email};
+}
+
+async function handleLogout(request: Request, env: Env, mode: 'api' | 'nav') {
+  const sid = getCookie(request, 'sid');
+
+  if (sid && 'DB' in env && env.AUTH_DB) {
+    try {
+      await env.AUTH_DB.prepare('DELETE FROM sessions WHERE sid = ?').bind(sid).run();
+    } catch { /* ignore */
+    }
+  }
+
+  const headers = new Headers();
+  headers.set('Set-Cookie', clearSidCookie()); // remove cookie
+
+  if (mode === 'nav') {
+    // Redirect when user visited /logout directly in the browser
+    headers.set('Location', '/');
+    return new Response(null, {status: 303, headers});
+  } else {
+    // API mode for fetch('/logout', { method: 'POST' })
+    return new Response(null, {status: 204, headers});
+  }
+}
+
+function clearSidCookie(): string {
+  // No Domain attribute -> clears cookie for current host only
+  return [
+    'sid=',
+    'Path=/',
+    'HttpOnly',
+    'Secure',
+    'SameSite=Strict',
+    'Max-Age=0',
+    'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+  ].join('; ');
 }
 
 function safeParseArray(s: string): string[] {
