@@ -5,7 +5,6 @@ import {
   generateAuthenticationOptions,
   verifyAuthenticationResponse,
 } from "@simplewebauthn/server";
-import * as jose from "jose";
 
 const u8 = (s: string) => new TextEncoder().encode(s);
 
@@ -78,7 +77,6 @@ export const routes = {
       return new Response(JSON.stringify({verified: false}), {status: 400, headers: cors});
 
     try {
-
       const {fmt, aaguid, credentialBackedUp, credentialDeviceType, credential, attestationObject} =
         verification.registrationInfo;
 

@@ -29,7 +29,6 @@ const JSON_HEADERS = {
   "x-content-type-options": "nosniff",
 };
 
-const u8 = (s: string) => new TextEncoder().encode(s);
 const json = (d: unknown, s = 200, h: Record<string, string> = {}) =>
   new Response(JSON.stringify(d), {status: s, headers: {"content-type": "application/json", ...cors, ...h}});
 
@@ -57,7 +56,7 @@ type MeResponse = {
 };
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Env) {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, {
       headers: {
@@ -91,19 +90,8 @@ export default {
       return new Response(JSON.stringify(ASSETLINKS), {headers: JSON_HEADERS});
     }
 
-    // --- API: JSON for the page ---
     if (request.method === 'GET' && url.pathname === '/me-creds') {
-      //return json({ ok: true, ping: 'works' });
       return handleGetMe(request, env);
-    }
-
-    // GET /debug/creds?email=foo
-    if (url.pathname === "/debug/creds") {
-      const email = url.searchParams.get("email")!;
-      const user = await env.AUTH_DB.prepare("SELECT * FROM user WHERE email=?").bind(email).first<any>();
-      if (!user) return json({user: null, credentials: []});
-      const creds = await env.AUTH_DB.prepare("SELECT * FROM credentials WHERE user_id=?").bind(user.id).all<any>();
-      return json({user, credentials: creds.results ?? []});
     }
 
     if (url.pathname === "/") {
@@ -127,10 +115,9 @@ export default {
         const html = await env.ASSETS.fetch(new Request(new URL("/me-page.html", request.url)));
         const user = await getUserFromSession(request, env);
         if (!user) return jsonData({error: 'Unauthorized'}, 401);
-        //return json({ok: true});
         return new Response(await html.text(), {headers: {"content-type": "text/html"}});
-      } catch {
-        return json({ok: false}, 401);
+      } catch (e) {
+        return  jsonData({error: e, verified: false}, 401);
       }
     }
 
@@ -285,13 +272,4 @@ function clearSidCookie(): string {
     'Max-Age=0',
     'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
   ].join('; ');
-}
-
-function safeParseArray(s: string): string[] {
-  try {
-    const v = JSON.parse(s);
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
-  }
 }

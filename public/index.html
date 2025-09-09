@@ -153,12 +153,6 @@
     // Convert challenge & user.id to buffers
     opts.challenge = fromB64Url(opts.challenge);
     if (opts.user && opts.user.id) opts.user.id = new TextEncoder().encode(opts.user.id);
-    if (Array.isArray(opts.excludeCredentials)) {
-      opts.excludeCredentials = opts.excludeCredentials.map(c => ({
-        ...c,
-        id: typeof c.id === 'string' ? toB64Url(c.id) : c.id
-      }));
-    }
 
     msg('Showing passkey sheet…');
     const att = await navigator.credentials.create({publicKey: opts});
