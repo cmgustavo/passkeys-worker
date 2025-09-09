@@ -124,12 +124,10 @@ export default {
     }
 
     if (request.method === 'GET' && url.pathname === "/me") {
-      const html = await env.ASSETS.fetch(new Request(new URL("/me-page.html", request.url)));
-      const cookie = request.headers.get("cookie") || "";
-      const sid = /(?:^|;\s*)sid=([^;]+)/.exec(cookie)?.[1];
-      if (!sid) return json({ok: false}, 401);
       try {
-        await jose.jwtVerify(sid, u8(env.SESSION_SECRET));
+        const html = await env.ASSETS.fetch(new Request(new URL("/me-page.html", request.url)));
+        const user = await getUserFromSession(request, env);
+        if (!user) return jsonData({error: 'Unauthorized'}, 401);
         //return json({ok: true});
         return new Response(await html.text(), {headers: {"content-type": "text/html"}});
       } catch {
