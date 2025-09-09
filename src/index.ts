@@ -238,7 +238,7 @@ async function getUserFromSession(request: Request, env: Env): Promise<{ id: str
     .prepare(
       `SELECT u.id as user_id, u.email as email, s.expires_at
        FROM sessions s
-              JOIN users u ON u.id = s.user_id
+              JOIN user u ON u.id = s.user_id
        WHERE s.sid = ?`
     )
     .bind(sid)
