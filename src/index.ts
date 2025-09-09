@@ -1,9 +1,3 @@
-import {issuer} from "@openauthjs/openauth";
-import {CloudflareStorage} from "@openauthjs/openauth/storage/cloudflare";
-import {PasswordProvider} from "@openauthjs/openauth/provider/password";
-import {PasswordUI} from "@openauthjs/openauth/ui/password";
-import {createSubjects} from "@openauthjs/openauth/subject";
-import {object, string} from "valibot";
 import {routes} from "./passkeys";
 import * as jose from "jose";
 
@@ -46,23 +40,25 @@ const cors = {
   "access-control-allow-headers": "content-type",
 };
 
-// This value should be shared between the OpenAuth server Worker and other
-// client Workers that you connect to it, so the types and schema validation are
-// consistent.
-const subjects = createSubjects({
-  user: object({
-    id: string(),
-  }),
-});
+type CredentialRow = {
+  id: string;
+  user_id: string;
+  public_key: string;
+  counter: number;
+  fmt: string;
+  aaguid: string;
+  backed_up: boolean;
+  uv: boolean;
+  created_at?: number;
+};
+
+type MeResponse = {
+  email: string;
+  credentials: Array<CredentialRow>;
+};
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    // This top section is just for demo purposes. In a real setup another
-    // application would redirect the user to this Worker to be authenticated,
-    // and after signing in or registering the user would be redirected back to
-    // the application they came from. In our demo setup there is no other
-    // application, so this Worker needs to do the initial redirect and handle
-    // the callback redirect on completion.
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, {
       headers: {
@@ -96,7 +92,7 @@ export default {
     }
 
     if (url.pathname === "/") {
-      const html = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url))); // if using assets
+      const html = await env.ASSETS.fetch(new Request(new URL("/index.html", request.url)));
       return new Response(await html.text(), {headers: {"content-type": "text/html"}});
     }
 
@@ -105,14 +101,26 @@ export default {
     if (url.pathname === "/webauthn/login/options" && request.method === "POST") return routes.loginOptions(request, env);
     if (url.pathname === "/webauthn/login/verify" && request.method === "POST") return routes.loginVerify(request, env);
 
-    // Protected example
-    if (url.pathname === "/me") {
+    // --- API: JSON for the page ---
+    if (request.method === 'GET' && url.pathname === '/me.json') {
+      return handleGetMe(request, env);
+    }
+
+    const delMatch = url.pathname.match(/^\/webauthn\/credentials\/([^/]+)$/);
+    if (request.method === 'DELETE' && delMatch) {
+      const credId = decodeURIComponent(delMatch[1]);
+      return handleDeleteCredential(request, env, credId);
+    }
+
+    if (request.method === 'GET' && url.pathname === "/me") {
+      const html = await env.ASSETS.fetch(new Request(new URL("/me-page.html", request.url)));
       const cookie = request.headers.get("cookie") || "";
       const sid = /(?:^|;\s*)sid=([^;]+)/.exec(cookie)?.[1];
       if (!sid) return json({ok: false}, 401);
       try {
         await jose.jwtVerify(sid, u8(env.SESSION_SECRET));
-        return json({ok: true});
+        //return json({ok: true});
+        return new Response(await html.text(), {headers: {"content-type": "text/html"}});
       } catch {
         return json({ok: false}, 401);
       }
@@ -120,77 +128,127 @@ export default {
 
     // Fallthrough: let static assets handle it
     return new Response("Not found", {status: 404, headers: cors});
-
-    /*
-    if (url.pathname === "/") {
-      url.searchParams.set("redirect_uri", url.origin + "/callback");
-      url.searchParams.set("client_id", "your-client-id");
-      url.searchParams.set("response_type", "code");
-      url.pathname = "/authorize";
-      return Response.redirect(url.toString());
-    } else if (url.pathname === "/callback") {
-      return Response.json({
-        message: "OAuth flow complete!",
-        params: Object.fromEntries(url.searchParams.entries()),
-      });
-    }
-
-    // The real OpenAuth server code starts here:
-    return issuer({
-      storage: CloudflareStorage({
-        namespace: env.AUTH_STORAGE,
-      }),
-      subjects,
-      providers: {
-        password: PasswordProvider(
-          PasswordUI({
-            // eslint-disable-next-line @typescript-eslint/require-await
-            sendCode: async (email, code) => {
-              // This is where you would email the verification code to the
-              // user, e.g. using Resend:
-              // https://resend.com/docs/send-with-cloudflare-workers
-              console.log(`Sending code ${code} to ${email}`);
-            },
-            copy: {
-              input_code: "Code (check Worker logs)",
-            },
-          }),
-        ),
-      },
-      theme: {
-        title: "myAuth",
-        primary: "#0051c3",
-        favicon: "https://workers.cloudflare.com//favicon.ico",
-        logo: {
-          dark: "https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/db1e5c92-d3a6-4ea9-3e72-155844211f00/public",
-          light:
-            "https://imagedelivery.net/wSMYJvS3Xw-n339CbDyDIA/fa5a3023-7da9-466b-98a7-4ce01ee6c700/public",
-        },
-      },
-      success: async (ctx, value) => {
-        return ctx.subject("user", {
-          id: await getOrCreateUser(env, value.email),
-        });
-      },
-    }).fetch(request, env, ctx);
-     */
   },
 } satisfies ExportedHandler<Env>;
 
-async function getOrCreateUser(env: Env, email: string): Promise<string> {
-  const result = await env.AUTH_DB.prepare(
-    `
-      INSERT INTO user (email)
-      VALUES (?) ON CONFLICT (email) DO
-      UPDATE SET email = email
-        RETURNING id;
-    `,
-  )
-    .bind(email)
-    .first<{ id: string }>();
-  if (!result) {
-    throw new Error(`Unable to process user: ${email}`);
+async function handleGetMe(request: Request, env: Env): Promise<Response> {
+  const user = await getUserFromSession(request, env);
+  if (!user) return jsonData({error: 'Unauthorized'}, 401);
+
+  const email = user.email as string;
+
+  const credsRes = await env.AUTH_DB.prepare(
+    `SELECT id,
+            user_id,
+            public_key,
+            counter,
+            fmt,
+            aaguid,
+            backed_up,
+            uv,
+            created_at
+     FROM credentials
+     WHERE user_id = ?
+     ORDER BY created_at ASC`
+  ).bind(user.id).all<CredentialRow>();
+
+  const credentials = (credsRes.results || []).map((r) => ({
+    id: r.id,
+    user_id: r.user_id,
+    public_key: r.public_key,
+    counter: r.counter,
+    fmt: r.fmt,
+    aaguid: r.aaguid,
+    backed_up: r.backed_up,
+    uv: r.uv,
+    created_at: r.created_at,
+  }));
+
+  const body: MeResponse = {email, credentials};
+  return jsonData(body, 200);
+}
+
+async function handleDeleteCredential(request: Request, env: Env, credentialId: string): Promise<Response> {
+  const user = await getUserFromSession(request, env);
+  if (!user) return jsonData({error: 'Unauthorized'}, 401);
+
+  const countRes = await env.AUTH_DB
+    .prepare(`SELECT COUNT(*) as n
+              FROM credentials
+              WHERE user_id = ?`)
+    .bind(user.id).first<{ n: number }>();
+  const total = Number(countRes?.n ?? 0);
+  if (total <= 1) {
+    return jsonData({error: 'You must keep at least one passkey.'}, 409);
   }
-  console.log(`Found or created user ${result.id} with email ${email}`);
-  return result.id;
+
+  const del = await env.AUTH_DB
+    .prepare(`DELETE
+              FROM credentials
+              WHERE id = ?
+                AND user_id = ?`)
+    .bind(credentialId, user.id)
+    .run();
+
+  if ((del.meta as any)?.changes === 0) {
+    return jsonData({error: 'Not found'}, 404);
+  }
+
+  return new Response(null, {status: 204});
+}
+
+/* ---------------- helpers ---------------- */
+
+function jsonData(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  });
+}
+
+// Very basic cookie parsing (adjust if you already use a lib)
+function getCookie(request: Request, name: string): string | null {
+  const cookie = request.headers.get('Cookie');
+  if (!cookie) return null;
+  const m = cookie.match(new RegExp(`(?:^|; )${escapeRe(name)}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+function escapeRe(s: string) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function getUserFromSession(request: Request, env: Env): Promise<{ id: string; email: string } | null> {
+  const sid = getCookie(request, 'sid');
+  if (!sid) return null;
+
+  // Validate session & not expired
+  const row = await env.AUTH_DB
+    .prepare(
+      `SELECT u.id as user_id, u.email as email, s.expires_at
+       FROM sessions s
+              JOIN users u ON u.id = s.user_id
+       WHERE s.sid = ?`
+    )
+    .bind(sid)
+    .first<{ user_id: string; email: string; expires_at: number }>();
+
+  if (!row) return null;
+  const now = Math.floor(Date.now() / 1000);
+  if (row.expires_at <= now) {
+    await env.AUTH_DB.prepare(`DELETE
+                               FROM sessions
+                               WHERE sid = ?`).bind(sid).run();
+    return null;
+  }
+  return {id: row.user_id, email: row.email};
+}
+
+function safeParseArray(s: string): string[] {
+  try {
+    const v = JSON.parse(s);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
 }

@@ -1,34 +1,103 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8"/>
   <title>Passkey Demo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 2rem; }
-    .card { max-width: 560px; padding: 1rem 1.25rem; border: 1px solid #ddd; border-radius: 12px; }
-    label { display:block; margin-top: .5rem; font-weight: 600; }
-    input { width: 100%; padding: .6rem .7rem; margin: .25rem 0 .75rem; border: 1px solid #ccc; border-radius: 8px; }
-    button { padding: .6rem 1rem; border: 0; border-radius: 8px; cursor: pointer; }
-    button { padding: .6rem 1rem; border: 0; border-radius: 8px; cursor: pointer; }
-    button.primary { background: #0d6efd; color: white; }
-    button.outline { background: white; border: 1px solid #aaa; }
-    .row { display:flex; gap:.5rem; }
-    pre { background: #fafafa; padding: .75rem; border-radius: 8px; overflow: auto; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      margin: 2rem;
+    }
+
+    .card {
+      max-width: 450px;
+      padding: 1rem 1.25rem;
+      border: 1px solid #ddd;
+      border-radius: 12px;
+    }
+
+    label {
+      display: block;
+      margin-top: .5rem;
+      margin-left: .2rem;
+      margin-bottom: .1rem;
+      font-weight: 600;
+    }
+
+    input {
+      width: 90%;
+      padding: .6rem .7rem;
+      margin: .25rem 0 .75rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    button {
+      padding: .6rem 1rem;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button {
+      padding: .6rem 1rem;
+      border: 0;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: #0d6efd;
+      color: white;
+    }
+
+    button.outline {
+      background: white;
+      border: 1px solid #aaa;
+    }
+
+    button:disabled {
+      background: #eee;
+      color: #999;
+      cursor: not-allowed;
+    }
+
+    .row {
+      display: flex;
+      gap: .5rem;
+    }
+
+    pre {
+      background: #fafafa;
+      padding: .75rem;
+      border-radius: 8px;
+      overflow: auto;
+      font-size: .8rem;
+      white-space: pre-wrap;
+      max-width: 100%;
+      color: darkred;
+    }
+
+    .message {
+      margin-top: 1rem;
+      font-weight: 400;
+      color: #666;
+    }
   </style>
 </head>
 <body>
-<h1>Passkey Demo</h1>
+<h1>Passkey BitPay App</h1>
 <div class="card">
   <label>Email</label>
-  <input id="email" placeholder="gus01@hola.com" value="gus01@hola.com"/>
+  <input id="email" placeholder="test01@test.com" value="test01@test.com"/>
 
   <div class="row">
     <button class="primary" id="btnRegister">Register Passkey</button>
     <button class="outline" id="btnLogin">Login with Passkey</button>
   </div>
 
-  <p id="msg"></p>
+  <p class="message" id="msg"></p>
   <pre id="log" hidden></pre>
 </div>
 
@@ -36,30 +105,43 @@
   const log = (o) => {
     const el = document.getElementById('log');
     el.hidden = false;
-    el.textContent = typeof o === 'string' ? o : JSON.stringify(o, null, 2);
+    const errorStr = typeof o === 'string' ? o : (JSON.stringify(o, null, 2) !== '{}' ? JSON.stringify(o, null, 2) : o);
+    el.textContent = errorStr;
   };
   const msg = (t) => document.getElementById('msg').textContent = t;
 
   // base64url helpers
   const toB64Url = (buf) => {
     const b = Array.from(new Uint8Array(buf), x => String.fromCharCode(x)).join('');
-    return btoa(b).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   };
   const fromB64Url = (s) => {
-    s = s.replace(/-/g,'+').replace(/_/g,'/');
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
     const pad = s.length % 4 ? 4 - (s.length % 4) : 0;
     const bin = atob(s + '='.repeat(pad));
     const bytes = new Uint8Array(bin.length);
-    for (let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return bytes.buffer;
   };
 
+  // Function to disable buttons
+  function disableButtons() {
+    document.getElementById('btnRegister').disabled = true;
+    document.getElementById('btnLogin').disabled = true;
+  }
+
+  function enableButtons() {
+    document.getElementById('btnRegister').disabled = false;
+    document.getElementById('btnLogin').disabled = false;
+  }
+
   async function register() {
+    disableButtons();
     msg('Requesting registration options…');
     const email = document.getElementById('email').value.trim();
     const res = await fetch('/webauthn/register/options', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email }),
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({email}),
     });
     const opts = await res.json();
 
@@ -68,7 +150,7 @@
     if (opts.user && opts.user.id) opts.user.id = new TextEncoder().encode(opts.user.id);
 
     msg('Showing passkey sheet…');
-    const att = await navigator.credentials.create({ publicKey: opts });
+    const att = await navigator.credentials.create({publicKey: opts});
     // Convert ArrayBuffer fields to base64url for the server
     const attResp = {
       id: att.id,
@@ -83,11 +165,11 @@
 
     msg('Verifying registration…');
     const ver = await fetch('/webauthn/register/verify', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email, attResp }),
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({email, attResp}),
     }).then(r => r.json());
 
-    msg(ver.verified ? '✅ Registered!' : '❌ Registration failed');
+    msg(ver.verified ? 'Registered!' : 'Registration failed');
     log(ver);
   }
 
@@ -95,21 +177,19 @@
     msg('Requesting login options…');
     const email = document.getElementById('email').value.trim();
     const res = await fetch('/webauthn/login/options', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ email }),
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({email}),
     });
-    msg('User found in database, requesting login options...');
-    log(res);
     const opts = await res.json();
 
     // Convert challenge and allowCredentials[].id
     opts.challenge = fromB64Url(opts.challenge);
     if (opts.allowCredentials) {
-      opts.allowCredentials = opts.allowCredentials.map(c => ({ ...c, id: fromB64Url(c.id) }));
+      opts.allowCredentials = opts.allowCredentials.map(c => ({...c, id: fromB64Url(c.id)}));
     }
 
     msg('Showing passkey sheet…');
-    const asse = await navigator.credentials.get({ publicKey: opts });
+    const asse = await navigator.credentials.get({publicKey: opts});
 
     const credResp = {
       id: asse.id,
@@ -124,8 +204,8 @@
     };
 
     const ver = await fetch('/webauthn/login/verify', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ userID: opts.userID, credResp }),
+      method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({userID: opts.userID, credResp}),
     }).then(r => r.json());
 
     msg(ver.verified ? '✅ Logged in!' : '❌ Login failed');
@@ -139,8 +219,14 @@
      */
   }
 
-  document.getElementById('btnRegister').addEventListener('click', () => register().catch(e => { msg('Error'); log(e); }));
-  document.getElementById('btnLogin').addEventListener('click', () => login().catch(e => { msg('Error'); log(e); }));
+  document.getElementById('btnRegister').addEventListener('click', () => register().catch(e => {
+    log(e);
+    enableButtons();
+  }));
+  document.getElementById('btnLogin').addEventListener('click', () => login().catch(e => {
+    log(e);
+    enableButtons();
+  }));
 </script>
 </body>
 </html>
