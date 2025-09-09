@@ -83,12 +83,12 @@ export const routes = {
         verification.registrationInfo;
 
       await env.AUTH_DB.prepare(
-        `INSERT INTO credentials (id, user_id, public_key, counter, fmt, aaguid, backed_up, uv, created_at)
+        `INSERT INTO credentials (id, user_id, public_key, counter, fmt, aaguid, backed_up, multi_device, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
-        b64url(attestationObject),
+        b64url(credential.publicKey),
         user.id,
-        credential.publicKey,
+        new Uint8Array(credential.publicKey),
         credential.counter,
         fmt,
         aaguid,

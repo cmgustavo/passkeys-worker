@@ -150,7 +150,7 @@
       <th>Fmt</th>
       <th>AAGUID</th>
       <th>Backed Up</th>
-      <th>UV</th>
+      <th>Multi Device</th>
       <th>Created At</th>
       <th></th>
     </tr>
@@ -176,6 +176,21 @@
   // ---- Small utils ----
   const enc = new TextEncoder();
   const dec = new TextDecoder();
+
+  const fromB64Url = (s) => {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = s.length % 4 ? 4 - (s.length % 4) : 0;
+    const bin = atob(s + '='.repeat(pad));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.buffer;
+  };
+
+  // base64url helpers
+  const toB64Url = (buf) => {
+    const b = Array.from(new Uint8Array(buf), x => String.fromCharCode(x)).join('');
+    return btoa(b).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  };
 
   // Base64URL helpers (ArrayBuffer <-> string)
   function b64urlToBuf(b64url) {
@@ -289,7 +304,7 @@
       tr.appendChild(tdBackedUp);
 
       const tdUv = document.createElement('td');
-      tdUv.textContent = cred.uv ? 'Yes' : 'No';
+      tdUv.textContent = cred.multi_device ? 'Yes' : 'No';
       tr.appendChild(tdUv);
 
       const tdCreated = document.createElement('td');
@@ -327,15 +342,13 @@
       if (!res.ok) throw new Error('Failed to fetch register options');
       const opts = await res.json();
 
-      // Convert base64url strings to ArrayBuffers where required
-      opts.challenge = b64urlToBuf(opts.challenge);
-      if (opts.user && typeof opts.user.id === 'string') {
-        opts.user.id = b64urlToBuf(opts.user.id);
-      }
+      // Convert challenge & user.id to buffers
+      opts.challenge = fromB64Url(opts.challenge);
+      if (opts.user && opts.user.id) opts.user.id = new TextEncoder().encode(opts.user.id);
       if (Array.isArray(opts.excludeCredentials)) {
         opts.excludeCredentials = opts.excludeCredentials.map(c => ({
           ...c,
-          id: typeof c.id === 'string' ? b64urlToBuf(c.id) : c.id
+          id: typeof c.id === 'string' ? toB64Url(c.id) : c.id
         }));
       }
 
@@ -346,11 +359,11 @@
       // 3) Build payload for verify endpoint
       const attResp = {
         id: cred.id,
-        rawId: bufToB64url(cred.rawId),
+        rawId: toB64Url(cred.rawId),
         type: cred.type,
         response: {
-          clientDataJSON: bufToB64url(cred.response.clientDataJSON),
-          attestationObject: bufToB64url(cred.response.attestationObject),
+          clientDataJSON: toB64Url(cred.response.clientDataJSON),
+          attestationObject: toB64Url(cred.response.attestationObject),
           transports: cred.response.getTransports ? cred.response.getTransports() : undefined,
         }
       };

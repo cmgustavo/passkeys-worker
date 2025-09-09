@@ -47,7 +47,7 @@ type CredentialRow = {
   fmt: string;
   aaguid: string;
   backed_up: boolean;
-  uv: boolean;
+  multi_device: boolean;
   created_at: number;
 };
 
@@ -168,7 +168,7 @@ async function handleGetMe(request: Request, env: Env): Promise<Response> {
     fmt: r.fmt,
     aaguid: r.aaguid,
     backed_up: r.backed_up,
-    uv: r.uv,
+    multi_device: r.multi_device,
     created_at: r.created_at,
   }));
 
