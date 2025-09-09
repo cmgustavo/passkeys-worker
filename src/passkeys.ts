@@ -150,16 +150,37 @@ export const routes = {
     await env.AUTH_DB.prepare("UPDATE credentials SET counter=? WHERE id=?")
       .bind(verification.authenticationInfo.newCounter, dbCred.id).run();
 
-    const jwt = await new jose.SignJWT({sub: userID}).setIssuedAt()
-      .setExpirationTime("1h").setProtectedHeader({alg: "HS256"})
-      .sign(new TextEncoder().encode(env.SESSION_SECRET));
+    const ttlSecs = 7 * 24 * 3600; // 7 days
+    const now = Math.floor(Date.now() / 1000);
+    const sid = crypto.randomUUID(); // or a random 32b hex
 
-    return new Response(JSON.stringify({verified: true}), {
-      headers: {
-        ...cors,
-        "content-type": "application/json",
-        "set-cookie": `sid=${jwt}; Secure; HttpOnly; SameSite=Lax; Path=/`,
-      }
+    await env.AUTH_DB.prepare(
+      'INSERT INTO sessions (sid, user_id, expires_at) VALUES (?, ?, ?)'
+    ).bind(sid, userID, now + ttlSecs).run();
+
+    function makeSidCookie(val: string, maxAge: number, secure: boolean) {
+      // In dev over http, Secure cookies are ignored. Only mark Secure if https.
+      const parts = [
+        `sid=${encodeURIComponent(val)}`,
+        'Path=/',
+        'HttpOnly',
+        'SameSite=Strict',
+        `Max-Age=${maxAge}`,
+      ];
+      if (secure) parts.push('Secure');
+      return parts.join('; ');
+    }
+    function isHttps(req: Request) {
+      const u = new URL(req.url);
+      return u.protocol === 'https:';
+    }
+
+    const headers = new Headers();
+    headers.append('Set-Cookie', makeSidCookie(sid, ttlSecs, isHttps(req)));
+
+    return new Response(JSON.stringify({ verified: true }), {
+      status: 200,
+      headers
     });
   },
 };

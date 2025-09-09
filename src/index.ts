@@ -94,6 +94,7 @@ export default {
 
     // --- API: JSON for the page ---
     if (request.method === 'GET' && url.pathname === '/me-creds') {
+      //return json({ ok: true, ping: 'works' });
       return handleGetMe(request, env);
     }
 
