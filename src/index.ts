@@ -48,7 +48,7 @@ type CredentialRow = {
   aaguid: string;
   backed_up: boolean;
   uv: boolean;
-  created_at?: number;
+  created_at: number;
 };
 
 type MeResponse = {

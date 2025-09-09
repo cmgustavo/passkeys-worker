@@ -64,7 +64,7 @@
       border-color: #999;
     }
 
-    button.destructive, btn.destructive {
+    button.destructive {
       background: #dc3545;
     }
 
@@ -100,6 +100,15 @@
 
     .hidden {
       display: none;
+    }
+
+    a.btn.destructive {
+      color: #fff;
+      text-decoration: none;
+      border-color: #dc3545;
+      background: #dc3545;
+      padding: 8px 12px;
+      border-radius: 10px;
     }
 
     footer {
@@ -253,6 +262,7 @@
     elTable.classList.remove('hidden');
 
     list.forEach(cred => {
+      console.log('### renderCredential', cred);
       const tr = document.createElement('tr');
 
       const tdId = document.createElement('td');
@@ -264,23 +274,23 @@
       tr.appendChild(tdUserId);
 
       const tdCounter = document.createElement('td');
-      tdId.textContent = cred.counter;
+      tdId.textContent = cred.counter.toString() || '';
       tr.appendChild(tdCounter);
 
       const tdFmt = document.createElement('td');
-      tdId.textContent = cred.fmt;
+      tdId.textContent = cred.fmt || '';
       tr.appendChild(tdFmt);
 
       const tdAaguid = document.createElement('td');
-      tdId.textContent = cred.aaguid;
+      tdId.textContent = cred.aaguid || '';
       tr.appendChild(tdAaguid);
 
       const tdBackedUp = document.createElement('td');
-      tdId.textContent = cred.backed_up;
+      tdId.textContent = cred.backed_up ? 'Yes' : 'No';
       tr.appendChild(tdBackedUp);
 
       const tdUv = document.createElement('td');
-      tdId.textContent = cred.uv;
+      tdId.textContent = cred.uv ? 'Yes' : 'No';
       tr.appendChild(tdUv);
 
       const tdCreated = document.createElement('td');
