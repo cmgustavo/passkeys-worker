@@ -1,5 +1,4 @@
 import {routes} from "./passkeys";
-import * as jose from "jose";
 
 const AASA = {
   applinks: {
@@ -256,7 +255,7 @@ async function getUserFromSession(request: Request, env: Env): Promise<{ id: str
 async function handleLogout(request: Request, env: Env, mode: 'api' | 'nav') {
   const sid = getCookie(request, 'sid');
 
-  if (sid && 'DB' in env && env.AUTH_DB) {
+  if (sid && env.AUTH_DB) {
     try {
       await env.AUTH_DB.prepare('DELETE FROM sessions WHERE sid = ?').bind(sid).run();
     } catch { /* ignore */
@@ -267,7 +266,6 @@ async function handleLogout(request: Request, env: Env, mode: 'api' | 'nav') {
   headers.set('Set-Cookie', clearSidCookie()); // remove cookie
 
   if (mode === 'nav') {
-    // Redirect when user visited /logout directly in the browser
     headers.set('Location', '/');
     return new Response(null, {status: 303, headers});
   } else {

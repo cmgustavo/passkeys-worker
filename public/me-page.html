@@ -64,7 +64,7 @@
       border-color: #999;
     }
 
-    button.destructive {
+    button.destructive, btn.destructive {
       background: #dc3545;
     }
 
@@ -126,9 +126,6 @@
     </div>
     <div class="row">
       <button id="btn-create" title="Create a new passkey for this account">Create new passkey</button>
-      <a class="btn secondary" href="/" title="Back to Home">Home</a>
-    </div>
-    <div class="row">
       <a class="btn destructive" href="/logout" title="Sign out">Sign out</a>
     </div>
   </div>
@@ -138,7 +135,7 @@
   <table id="passkey-table" class="hidden" aria-label="Stored passkeys">
     <thead>
     <tr>
-      <th>Credential ID</th>
+      <th>Credential</th>
       <th>User ID</th>
       <th>Counter</th>
       <th>Fmt</th>
@@ -146,6 +143,7 @@
       <th>Backed Up</th>
       <th>UV</th>
       <th>Created At</th>
+      <th>Actions</th>
     </tr>
     </thead>
     <tbody id="passkey-tbody"></tbody>
@@ -262,27 +260,27 @@
       tr.appendChild(tdId);
 
       const tdUserId = document.createElement('td');
-      tdId.innerHTML = `<div class="muted">UserID: <code>${cred.user_id}</code></div>`;
+      tdId.innerHTML = `<code title="${cred.user_id || ''}">${shortId(cred.user_id)}</code>`;
       tr.appendChild(tdUserId);
 
       const tdCounter = document.createElement('td');
-      tdId.innerHTML = `<div class="muted">Counter: <code>${cred.counter}</code></div>`;
+      tdId.textContent = cred.counter;
       tr.appendChild(tdCounter);
 
       const tdFmt = document.createElement('td');
-      tdId.innerHTML = `<div class="muted">Fmt: <code>${cred.fmt}</code></div>`;
+      tdId.textContent = cred.fmt;
       tr.appendChild(tdFmt);
 
       const tdAaguid = document.createElement('td');
-      tdId.innerHTML = `<div class="muted">AAGUID: <code>${cred.aaguid}</code></div>`;
+      tdId.textContent = cred.aaguid;
       tr.appendChild(tdAaguid);
 
       const tdBackedUp = document.createElement('td');
-      tdId.innerHTML = `<div class="muted">Fmt: <code>${cred.backed_up}</code></div>`;
+      tdId.textContent = cred.backed_up;
       tr.appendChild(tdBackedUp);
 
       const tdUv = document.createElement('td');
-      tdId.innerHTML = `<div class="muted">Uv: <code>${cred.uv}</code></div>`;
+      tdId.textContent = cred.uv;
       tr.appendChild(tdUv);
 
       const tdCreated = document.createElement('td');
