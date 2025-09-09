@@ -153,7 +153,7 @@ async function handleGetMe(request: Request, env: Env): Promise<Response> {
             fmt,
             aaguid,
             backed_up,
-            uv,
+            multi_device,
             created_at
      FROM credentials
      WHERE user_id = ?
