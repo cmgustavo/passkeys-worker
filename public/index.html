@@ -145,6 +145,11 @@
     });
     const opts = await res.json();
 
+    if (!opts || (opts && !opts.challenge)) {
+      log(res);
+      return;
+    }
+
     // Convert challenge & user.id to buffers
     opts.challenge = fromB64Url(opts.challenge);
     if (opts.user && opts.user.id) opts.user.id = new TextEncoder().encode(opts.user.id);
@@ -182,6 +187,11 @@
     });
     const opts = await res.json();
 
+    if (!opts || (opts && !opts.challenge)) {
+      log(res);
+      return;
+    }
+
     // Convert challenge and allowCredentials[].id
     opts.challenge = fromB64Url(opts.challenge);
     if (opts.allowCredentials) {
@@ -208,7 +218,7 @@
       body: JSON.stringify({userID: opts.userID, credResp}),
     }).then(r => r.json());
 
-    msg(ver.verified ? '✅ Logged in!' : '❌ Login failed');
+    msg(ver.verified ? 'Logged in!' : 'Login failed');
     log(ver);
 
     /*
