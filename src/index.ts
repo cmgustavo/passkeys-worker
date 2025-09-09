@@ -93,7 +93,7 @@ export default {
     }
 
     // --- API: JSON for the page ---
-    if (request.method === 'GET' && url.pathname === '/me-creds.json') {
+    if (request.method === 'GET' && url.pathname === '/me-creds') {
       return handleGetMe(request, env);
     }
 
