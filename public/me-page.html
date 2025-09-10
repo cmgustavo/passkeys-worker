@@ -315,7 +315,7 @@
         method: 'POST',
         headers: {'content-type': 'application/json'},
         credentials: 'include',
-        body: JSON.stringify({email: ME.email}) // session identifies user
+        body: JSON.stringify({email: ME.email, context: 'dashboard'}) // session identifies user
       });
       if (!res.ok) throw new Error('Failed to fetch register options');
       const opts = await res.json();

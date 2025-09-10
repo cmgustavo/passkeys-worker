@@ -39,13 +39,15 @@ async function getCredsByUser(DB: D1Database, userId: string) {
 
 export const routes = {
   async registerOptions(req: Request, env: Env) {
-    const {email} = await req.json<any>();
+    const {email, context} = await req.json<any>();
     let user = await getUserByUsername(env.AUTH_DB, email);
     if (!user) {
       const id = crypto.randomUUID();
       await env.AUTH_DB.prepare("INSERT INTO user (id, email, created_at) VALUES (?, ?, ?)")
         .bind(id, email, Date.now()).run();
       user = {id, email};
+    } else if (context === 'home') {
+      return new Response(JSON.stringify({error: "user already exists"}), {status: 200, headers: cors});
     }
     const excludeCredentials = (await getCredsByUser(env.AUTH_DB, user.id)).map((c: any) => ({
       id: c.id, type: "public-key" as const
