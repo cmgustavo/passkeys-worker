@@ -147,6 +147,7 @@
 
     if (!opts || (opts && !opts.challenge)) {
       log(opts);
+      enableButtons();
       return;
     }
 
@@ -218,16 +219,15 @@
       body: JSON.stringify({userID: opts.userID, credResp}),
     }).then(r => r.json());
 
-    msg(ver.verified ? 'Logged in!' : 'Login failed');
+    msg(ver.verified ? 'Logged in! Redirecting...' : 'Login failed');
     log(ver);
 
     if (ver.verified) {
+      await new Promise(r => setTimeout(r, 1000));
       const qs = new URLSearchParams(location.search);
       const want = qs.get('redirect');
       const dest = (want && want.startsWith('/')) ? want : '/me';
       location.replace(dest); // replace() so login page isn’t in history
-    } else {
-      alert('Login failed');
     }
   }
 
