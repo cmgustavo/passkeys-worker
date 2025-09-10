@@ -308,6 +308,8 @@
         return;
       }
 
+      btnCreate.disabled = true;
+
       // 1) Get creation options from server (already tied to logged-in user)
       const res = await fetch(API.registerOptions, {
         method: 'POST',
@@ -351,8 +353,10 @@
 
       // 5) Refresh the list
       await init();
+      btnCreate.disabled = false;
       alert('New passkey created!');
     } catch (err) {
+      btnCreate.disabled = false;
       console.error(err);
       alert('Could not create passkey: ' + (err?.message || err));
     }

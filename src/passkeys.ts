@@ -19,9 +19,13 @@ const b64url = (buf: ArrayBuffer | Uint8Array) => {
   // @ts-ignore Buffer via nodejs_compat
   return Buffer.from(bytes).toString("base64url");
 };
-const b64urlToBuf = (s: string) => {
-  // @ts-ignore Buffer via nodejs_compat
-  return Buffer.from(s, "base64url");
+
+const b64urlToBuf = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)).buffer;
+const bufEqual = (a: ArrayBuffer, b: ArrayBuffer) => {
+  if (a.byteLength !== b.byteLength) return false;
+  const va = new Uint8Array(a), vb = new Uint8Array(b);
+  for (let i = 0; i < va.length; i++) if (va[i] !== vb[i]) return false;
+  return true;
 };
 
 async function getUserByUsername(DB: D1Database, email: string) {
@@ -77,16 +81,16 @@ export const routes = {
       return new Response(JSON.stringify({verified: false}), {status: 400, headers: cors});
 
     try {
-      const {fmt, aaguid, credentialBackedUp, credentialDeviceType, credential, attestationObject} =
+      const {fmt, aaguid, credentialBackedUp, credentialDeviceType, credential} =
         verification.registrationInfo;
 
       await env.AUTH_DB.prepare(
         `INSERT INTO credentials (id, user_id, public_key, counter, fmt, aaguid, backed_up, multi_device, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
-        b64url(credential.publicKey),
+        credential.id,
         user.id,
-        new Uint8Array(credential.publicKey),
+        credential.publicKey,
         credential.counter,
         fmt,
         aaguid,
@@ -122,14 +126,19 @@ export const routes = {
   async loginVerify(req: Request, env: Env) {
     const {userID, credResp} = await req.json<any>();
     const creds = await getCredsByUser(env.AUTH_DB, userID);
+
+    const allowCredentials = creds.map(c => ({
+      id: c.id,
+      type: 'public-key',
+    }));
+    const assertionIdBuf =
+      credResp.rawId instanceof ArrayBuffer ? credResp.rawId : b64urlToBuf(credResp.id);
+    const dbCred = creds.find(c => bufEqual(b64urlToBuf(c.id), assertionIdBuf));
+    if (!dbCred) {
+      return new Response(JSON.stringify({error: "Credential not found for this user"}), {status: 400, headers: cors});
+    }
+
     const challenge = await env.AUTH_STORAGE.get(`auth-chal:${userID}`);
-
-    const dbCred =
-      creds.find((c: any) => c.id === credResp.id) ||
-      creds.find((c: any) => b64urlToBuf(c.id).byteLength === b64urlToBuf(credResp.id).byteLength) ||
-      creds[0];
-
-    if (!dbCred) return new Response(JSON.stringify({error: "no creds"}), {status: 400, headers: cors});
 
     const verification = await verifyAuthenticationResponse({
       response: credResp,
@@ -138,8 +147,10 @@ export const routes = {
       expectedRPID: env.RP_ID,
       credential: {
         id: dbCred.id,
-        publicKey: dbCred.public_key,
-        counter: dbCred.counter,
+        publicKey: typeof dbCred.public_key === 'string'
+          ? b64urlToBuf(dbCred.public_key)
+          : dbCred.public_key,
+        counter: dbCred.counter ?? 0,
       },
     });
     if (!verification.verified || !verification.authenticationInfo)
@@ -168,6 +179,7 @@ export const routes = {
       if (secure) parts.push('Secure');
       return parts.join('; ');
     }
+
     function isHttps(req: Request) {
       const u = new URL(req.url);
       return u.protocol === 'https:';
@@ -176,7 +188,7 @@ export const routes = {
     const headers = new Headers();
     headers.append('Set-Cookie', makeSidCookie(sid, ttlSecs, isHttps(req)));
 
-    return new Response(JSON.stringify({ verified: true }), {
+    return new Response(JSON.stringify({verified: true}), {
       status: 200,
       headers
     });
