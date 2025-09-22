@@ -246,12 +246,11 @@
   async function status() {
     msg('Checking status...');
     const email = document.getElementById('email').value.trim();
-    const res = await fetch(PATH_STATUS, {
+    const res = await fetch(PATH_STATUS + '?email=' + email, {
       method: 'GET', headers: {'content-type': 'application/json'},
-      body: JSON.stringify({email}),
     });
     const opts = await res.json();
-    msg(opts.exists ? 'Credentials exist!' : 'Credentials do not exist');
+    msg(opts.exists ? 'Passkey exist!' : 'Passkey does not exist');
     log(opts);
     enableButtons();
   }

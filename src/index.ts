@@ -105,10 +105,10 @@ export default {
       const email = url.searchParams.get('email')!;
       const user = await env.AUTH_DB.prepare('SELECT id FROM user WHERE email = ?').bind(email).first<{ id: string }>();
       if (!user) {
-        return jsonData({exists: false}, 200);
+        return jsonData({passkey: false}, 200);
       }
       const exists = await checkIfCredentialsExist(env, user.id);
-      return jsonData({exists}, 200);
+      return jsonData({passkey: exists}, 200);
     }
 
     if (url.pathname === "/") {
