@@ -250,7 +250,7 @@
       method: 'GET', headers: {'content-type': 'application/json'},
     });
     const opts = await res.json();
-    msg(opts.exists ? 'Passkey exist!' : 'Passkey does not exist');
+    msg(opts.passkey ? 'Passkey exist!' : 'Passkey does not exist');
     log(opts);
     enableButtons();
   }
