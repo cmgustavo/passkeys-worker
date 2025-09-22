@@ -14,12 +14,6 @@ const cors = {
   "access-control-allow-headers": "content-type",
 };
 
-const b64url = (buf: ArrayBuffer | Uint8Array) => {
-  const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
-  // @ts-ignore Buffer via nodejs_compat
-  return Buffer.from(bytes).toString("base64url");
-};
-
 const b64urlToBuf = (s: string) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)).buffer;
 const bufEqual = (a: ArrayBuffer, b: ArrayBuffer) => {
   if (a.byteLength !== b.byteLength) return false;
@@ -129,10 +123,6 @@ export const routes = {
     const {userID, credResp} = await req.json<any>();
     const creds = await getCredsByUser(env.AUTH_DB, userID);
 
-    const allowCredentials = creds.map(c => ({
-      id: c.id,
-      type: 'public-key',
-    }));
     const assertionIdBuf =
       credResp.rawId instanceof ArrayBuffer ? credResp.rawId : b64urlToBuf(credResp.id);
     const dbCred = creds.find(c => bufEqual(b64urlToBuf(c.id), assertionIdBuf));

@@ -1,5 +1,14 @@
 import {routes} from "./passkeys";
 
+const PATH_API = '/passkey';
+const PATH_REGISTER_CHALLENGE = PATH_API + '/register/challenge';
+const PATH_REGISTER_VERIFY = PATH_API + '/register/verify';
+const PATH_AUTH_CHALLENGE = PATH_API + '/authenticate/challenge';
+const PATH_AUTH_VERIFY = PATH_API + '/authenticate/verify';
+const PATH_STATUS = PATH_API + '/status';
+const PATH_CREDENTIALS = PATH_API + '/credentials';
+const PATH_HEALTH = PATH_API + '/health';
+
 const AASA = {
   applinks: {
     apps: [],
@@ -28,9 +37,6 @@ const JSON_HEADERS = {
   "cache-control": "public, max-age=3600",
   "x-content-type-options": "nosniff",
 };
-
-const json = (d: unknown, s = 200, h: Record<string, string> = {}) =>
-  new Response(JSON.stringify(d), {status: s, headers: {"content-type": "application/json", ...cors, ...h}});
 
 const cors = {
   "access-control-allow-origin": "*",
@@ -90,8 +96,19 @@ export default {
       return new Response(JSON.stringify(ASSETLINKS), {headers: JSON_HEADERS});
     }
 
-    if (request.method === 'GET' && url.pathname === '/me-creds') {
+    if (request.method === 'GET' && url.pathname === PATH_CREDENTIALS) {
       return handleGetMe(request, env);
+    }
+
+    // Check if credentials exist by email or username
+    if (request.method === 'GET' && url.pathname === PATH_STATUS && url.searchParams.has('email')) {
+      const email = url.searchParams.get('email')!;
+      const user = await env.AUTH_DB.prepare('SELECT id FROM user WHERE email = ?').bind(email).first<{ id: string }>();
+      if (!user) {
+        return jsonData({exists: false}, 200);
+      }
+      const exists = await checkIfCredentialsExist(env, user.id);
+      return jsonData({exists}, 200);
     }
 
     if (url.pathname === "/") {
@@ -99,12 +116,12 @@ export default {
       return new Response(await html.text(), {headers: {"content-type": "text/html"}});
     }
 
-    if (url.pathname === "/webauthn/register/options" && request.method === "POST") return routes.registerOptions(request, env);
-    if (url.pathname === "/webauthn/register/verify" && request.method === "POST") return routes.registerVerify(request, env);
-    if (url.pathname === "/webauthn/login/options" && request.method === "POST") return routes.loginOptions(request, env);
-    if (url.pathname === "/webauthn/login/verify" && request.method === "POST") return routes.loginVerify(request, env);
+    if (url.pathname === PATH_REGISTER_CHALLENGE && request.method === "POST") return routes.registerOptions(request, env);
+    if (url.pathname === PATH_REGISTER_VERIFY && request.method === "POST") return routes.registerVerify(request, env);
+    if (url.pathname === PATH_AUTH_CHALLENGE && request.method === "POST") return routes.loginOptions(request, env);
+    if (url.pathname === PATH_AUTH_VERIFY && request.method === "POST") return routes.loginVerify(request, env);
 
-    const delMatch = url.pathname.match(/^\/webauthn\/credentials\/([^/]+)$/);
+    const delMatch = url.pathname.match(/^\/passkey\/credentials\/([^/]+)$/);
     if (request.method === 'DELETE' && delMatch) {
       const credId = decodeURIComponent(delMatch[1]);
       return handleDeleteCredential(request, env, credId);
@@ -190,6 +207,16 @@ async function handleDeleteCredential(request: Request, env: Env, credentialId: 
   }
 
   return new Response(null, {status: 204});
+}
+
+async function checkIfCredentialsExist(env: Env, userId: string): Promise<boolean> {
+  const countRes = await env.AUTH_DB
+    .prepare(`SELECT COUNT(*) as n
+              FROM credentials
+              WHERE user_id = ?`)
+    .bind(userId).first<{ n: number }>();
+  const total = Number(countRes?.n ?? 0);
+  return total > 0;
 }
 
 /* ---------------- helpers ---------------- */

@@ -95,6 +95,7 @@
   <div class="row">
     <button class="primary" id="btnRegister">Register Passkey</button>
     <button class="outline" id="btnLogin">Login with Passkey</button>
+    <button class="outline" id="btnStatus">Status</button>
   </div>
 
   <p class="message" id="msg"></p>
@@ -102,6 +103,15 @@
 </div>
 
 <script>
+  const PATH_API = '/passkey';
+  const PATH_REGISTER_CHALLENGE = PATH_API + '/register/challenge';
+  const PATH_REGISTER_VERIFY = PATH_API + '/register/verify';
+  const PATH_AUTH_CHALLENGE = PATH_API + '/authenticate/challenge';
+  const PATH_AUTH_VERIFY = PATH_API + '/authenticate/verify';
+  const PATH_STATUS = PATH_API + '/status';
+  const PATH_CREDENTIALS = PATH_API + '/credentials';
+  const PATH_HEALTH = PATH_API + '/health';
+
   const log = (o) => {
     const el = document.getElementById('log');
     el.hidden = false;
@@ -128,18 +138,20 @@
   function disableButtons() {
     document.getElementById('btnRegister').disabled = true;
     document.getElementById('btnLogin').disabled = true;
+    document.getElementById('btnStatus').disabled = true;
   }
 
   function enableButtons() {
     document.getElementById('btnRegister').disabled = false;
     document.getElementById('btnLogin').disabled = false;
+    document.getElementById('btnStatus').disabled = false;
   }
 
   async function register() {
     disableButtons();
     msg('Requesting registration options…');
     const email = document.getElementById('email').value.trim();
-    const res = await fetch('/webauthn/register/options', {
+    const res = await fetch(PATH_REGISTER_CHALLENGE, {
       method: 'POST', headers: {'content-type': 'application/json'},
       body: JSON.stringify({email, context: 'home'}),
     });
@@ -170,7 +182,7 @@
     };
 
     msg('Verifying registration…');
-    const ver = await fetch('/webauthn/register/verify', {
+    const ver = await fetch(PATH_REGISTER_VERIFY, {
       method: 'POST', headers: {'content-type': 'application/json'},
       body: JSON.stringify({email, attResp}),
     }).then(r => r.json());
@@ -182,7 +194,7 @@
   async function login() {
     msg('Requesting login options…');
     const email = document.getElementById('email').value.trim();
-    const res = await fetch('/webauthn/login/options', {
+    const res = await fetch(PATH_AUTH_CHALLENGE, {
       method: 'POST', headers: {'content-type': 'application/json'},
       body: JSON.stringify({email}),
     });
@@ -214,7 +226,7 @@
       }
     };
 
-    const ver = await fetch('/webauthn/login/verify', {
+    const ver = await fetch(PATH_AUTH_VERIFY, {
       method: 'POST', headers: {'content-type': 'application/json'},
       body: JSON.stringify({userID: opts.userID, credResp}),
     }).then(r => r.json());
@@ -231,6 +243,19 @@
     }
   }
 
+  async function status() {
+    msg('Checking status...');
+    const email = document.getElementById('email').value.trim();
+    const res = await fetch(PATH_STATUS, {
+      method: 'GET', headers: {'content-type': 'application/json'},
+      body: JSON.stringify({email}),
+    });
+    const opts = await res.json();
+    msg(opts.exists ? 'Credentials exist!' : 'Credentials do not exist');
+    log(opts);
+    enableButtons();
+  }
+
   document.getElementById('btnRegister').addEventListener('click', () => register().catch(e => {
     log(e);
     enableButtons();
@@ -239,6 +264,10 @@
     log(e);
     enableButtons();
   }));
+  document.getElementById('btnStatus').addEventListener('click', () => status().catch(e => {
+    log(e);
+    enableButtons();
+  }))
 </script>
 </body>
 </html>

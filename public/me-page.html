@@ -164,14 +164,14 @@
 </footer>
 
 <script>
-  // ---- Adjust these if your routes differ ----
-  const API = {
-    me: '/me',
-    json: '/me-creds',
-    registerOptions: '/webauthn/register/options',
-    registerVerify: '/webauthn/register/verify',
-    deleteCredential: (id) => `/webauthn/credentials/${encodeURIComponent(id)}`,
-  };
+  const PATH_API = '/passkey';
+  const PATH_REGISTER_CHALLENGE = PATH_API + '/register/challenge';
+  const PATH_REGISTER_VERIFY = PATH_API + '/register/verify';
+  const PATH_AUTH_CHALLENGE = PATH_API + '/authenticate/challenge';
+  const PATH_AUTH_VERIFY = PATH_API + '/authenticate/verify';
+  const PATH_STATUS = PATH_API + '/status';
+  const PATH_CREDENTIALS = PATH_API + '/credentials';
+  const PATH_HEALTH = PATH_API + '/health';
 
   const fromB64Url = (s) => {
     s = s.replace(/-/g, '+').replace(/_/g, '/');
@@ -223,7 +223,7 @@
   });
 
   async function init() {
-    const res = await fetch(API.json, {
+    const res = await fetch(PATH_CREDENTIALS, {
       credentials: 'include',
       headers: {'Accept': 'application/json'},
     });
@@ -233,7 +233,7 @@
       return;
     }
 
-    if (!res.ok) throw new Error('Failed to fetch ' + API.json);
+    if (!res.ok) throw new Error('Failed to fetch ' + PATH_CREDENTIALS);
     ME = await res.json();
 
     elMe.classList.remove('hidden');
@@ -311,7 +311,7 @@
       btnCreate.disabled = true;
 
       // 1) Get creation options from server (already tied to logged-in user)
-      const res = await fetch(API.registerOptions, {
+      const res = await fetch(PATH_REGISTER_CHALLENGE, {
         method: 'POST',
         headers: {'content-type': 'application/json'},
         credentials: 'include',
@@ -341,7 +341,7 @@
       };
 
       // 4) Verify & store on server
-      const verify = await fetch(API.registerVerify, {
+      const verify = await fetch(PATH_REGISTER_VERIFY, {
         method: 'POST',
         headers: {'content-type': 'application/json'},
         body: JSON.stringify({email: ME.email, attResp}),
@@ -368,7 +368,7 @@
     const yes = confirm('Remove this passkey?\n\n' + cred.id);
     if (!yes) return;
 
-    const res = await fetch(API.deleteCredential(cred.id), {
+    const res = await fetch(PATH_CREDENTIALS + '/' + encodeURIComponent(cred.id), {
       method: 'DELETE',
       credentials: 'include',
     });
