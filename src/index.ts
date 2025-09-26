@@ -101,6 +101,23 @@ export default {
     }
 
     if (request.method === 'GET' && url.pathname === PATH_CREDENTIALS) {
+      const hasEmail = url.searchParams.has('email');
+      if (hasEmail) {
+        const email = url.searchParams.get('email')!;
+        const user = await env.AUTH_DB.prepare('SELECT id FROM user WHERE email = ?').bind(email).first<{ id: string }>();
+        if (!user) {
+          return jsonData({passkey: false}, 200);
+        }
+        const exists = await checkIfCredentialsExist(env, user.id);
+        if (!exists) {
+          return jsonData({passkey: false}, 200);
+        }
+        const credentials = await getCredentialFromDb(user.id, env);
+
+        const body: MeResponse = {email, credentials};
+        return jsonData(body, 200);
+
+      }
       return handleGetMe(request, env);
     }
 
@@ -163,12 +180,7 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-async function handleGetMe(request: Request, env: Env): Promise<Response> {
-  const user = await getUserFromSession(request, env);
-  if (!user) return jsonData({error: 'Unauthorized'}, 401);
-
-  const email = user.email as string;
-
+async function getCredentialFromDb(user_id: string, env: Env): Promise<Array<CredentialRow>> {
   const credsRes = await env.AUTH_DB.prepare(
     `SELECT id,
             user_id,
@@ -182,9 +194,9 @@ async function handleGetMe(request: Request, env: Env): Promise<Response> {
      FROM credentials
      WHERE user_id = ?
      ORDER BY created_at ASC`
-  ).bind(user.id).all<CredentialRow>();
+  ).bind(user_id).all<CredentialRow>();
 
-  const credentials = (credsRes.results || []).map((r) => ({
+  return (credsRes.results || []).map((r) => ({
     id: r.id,
     user_id: r.user_id,
     public_key: r.public_key,
@@ -195,6 +207,15 @@ async function handleGetMe(request: Request, env: Env): Promise<Response> {
     multi_device: r.multi_device,
     created_at: r.created_at,
   }));
+}
+
+async function handleGetMe(request: Request, env: Env): Promise<Response> {
+  const user = await getUserFromSession(request, env);
+  if (!user) return jsonData({error: 'Unauthorized'}, 401);
+
+  const email = user.email as string;
+
+  const credentials = await getCredentialFromDb(user.id, env);
 
   const body: MeResponse = {email, credentials};
   return jsonData(body, 200);
