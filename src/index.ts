@@ -7,6 +7,7 @@ const PATH_AUTH_CHALLENGE = PATH_API + '/authenticate/challenge';
 const PATH_AUTH_VERIFY = PATH_API + '/authenticate/verify';
 const PATH_STATUS = PATH_API + '/status';
 const PATH_CREDENTIALS = PATH_API + '/credentials';
+const PATH_BOOTSTRAP = PATH_API + '/bootstrap';
 const PATH_HEALTH = PATH_API + '/health';
 
 const AASA = {
@@ -136,6 +137,22 @@ export default {
       } catch (e) {
         return  jsonData({error: e, verified: false}, 401);
       }
+    }
+
+    // 1) Bootstrap: create or fetch user by email and issue session
+    if (url.pathname === PATH_BOOTSTRAP && request.method === "POST") {
+      const { email } = await request.json<any>();
+      if (!email || typeof email !== "string") {
+        return new Response(JSON.stringify({error: "Email required"}), {status: 400, headers: cors});
+      }
+
+      const userId = await upsertUserByEmail(env.AUTH_DB, email);
+      const sid = await createSession(env.AUTH_DB, userId, 60 * 60 * 24 * 7); // 7 days
+      const jwt = await signJWT({ sub: userId, sid }, env.SESSION_SECRET, { expSeconds: 60 * 60 * 24 * 7 });
+
+      const headers = new Headers({ "content-type": "application/json" });
+      headers.append("set-cookie", sessionCookie(jwt, env.ORIGIN, 60 * 60 * 24 * 7));
+      return new Response(JSON.stringify({ token: jwt, userId }), { status: 200, headers });
     }
 
     // Fallthrough: let static assets handle it
@@ -299,4 +316,66 @@ function clearSidCookie(): string {
     'Max-Age=0',
     'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
   ].join('; ');
+}
+
+async function upsertUserByEmail(db: D1Database, email: string) {
+  const existing = await db.prepare("SELECT id FROM user WHERE email = ?").bind(email).first<{id:string}>();
+  if (existing?.id) return existing.id;
+  const id = crypto.randomUUID();
+  await db.prepare("INSERT INTO user (id, email, created_at) VALUES (?, ?, ?)")
+    .bind(id, email.toLowerCase(), Date.now()).run();
+  return id;
+}
+
+async function createSession(db: D1Database, userId: string, ttlSec: number) {
+  const sid = crypto.randomUUID();
+  const now = Date.now();
+  await db.prepare(
+    "INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)"
+  ).bind(sid, userId, now + ttlSec * 1000).run();
+  return sid;
+}
+
+const b64url = (buf: ArrayBuffer | Uint8Array) => {
+  let str = typeof buf === "string" ? buf : btoa(String.fromCharCode(...new Uint8Array(buf)));
+  return str.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+};
+const b64urlDecode = (str: string) =>
+  Uint8Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+
+async function hmacSHA256(secret: string, data: string) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(data));
+  return new Uint8Array(sig);
+}
+
+function sessionCookie(token: string, origin: string, maxAgeSec: number) {
+  const url = new URL(origin);
+  const domain = url.hostname; // tweak if you need a parent domain
+  return [
+    `session=${encodeURIComponent(token)}`,
+    `Path=/`,
+    `HttpOnly`,
+    `Secure`,
+    `SameSite=Lax`,
+    `Max-Age=${maxAgeSec}`,
+    `Domain=${domain}`,
+  ].join("; ");
+}
+
+async function signJWT(payload: Record<string, any>, secret: string, { expSeconds = 3600 } = {}) {
+  const header = { alg: "HS256", typ: "JWT" };
+  const now = Math.floor(Date.now() / 1000);
+  const body = { iat: now, exp: now + expSeconds, ...payload };
+
+  const h = b64url(new TextEncoder().encode(JSON.stringify(header)));
+  const p = b64url(new TextEncoder().encode(JSON.stringify(body)));
+  const sig = b64url(await hmacSHA256(secret, `${h}.${p}`));
+  return `${h}.${p}.${sig}`;
 }
