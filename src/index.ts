@@ -14,6 +14,9 @@ const AASA = {
   applinks: {
     apps: [],
     details: [{appID: "884JRH5R93.com.bitpay.wallet", paths: ["/i/*", "/wallet/wc", "/uni/*", "/f/uni/*"]}]
+  },
+  webcredentials: {
+    apps: ["884JRH5R93.com.bitpay.wallet"]
   }
 };
 
