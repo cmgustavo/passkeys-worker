@@ -331,7 +331,7 @@ async function createSession(db: D1Database, userId: string, ttlSec: number) {
   const sid = crypto.randomUUID();
   const now = Date.now();
   await db.prepare(
-    "INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)"
+    "INSERT INTO sessions (sid, user_id, expires_at) VALUES (?, ?, ?)"
   ).bind(sid, userId, now + ttlSec * 1000).run();
   return sid;
 }
